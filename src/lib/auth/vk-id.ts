@@ -48,7 +48,36 @@ export function VKID(
       params: { scope: "vkid.personal_info email" },
     },
 
-    token: VK_TOKEN_URL,
+    token: {
+      url: VK_TOKEN_URL,
+
+      /**
+       * Выбрасывает id_token из ответа токен-эндпоинта.
+       *
+       * VK возвращает id_token, который не проходит проверку как OIDC ID
+       * Token: в его claims `iis` вместо `iss` и `app` вместо `aud`.
+       * oauth4webapi валидирует id_token всегда, когда тот присутствует в
+       * теле, — даже если провайдер объявлен обычным OAuth2 и id_token не
+       * обязателен (processGenericAccessTokenResponse в
+       * node_modules/oauth4webapi/build/index.js). Вход падает с
+       *   [auth][cause]: JWT "aud" (audience) claim missing
+       *
+       * Профиль всё равно берётся отдельным запросом к user_info, так что
+       * id_token здесь не нужен вовсе.
+       */
+      async conform(response: Response) {
+        const body = (await response.json()) as Record<string, unknown>;
+        delete body.id_token;
+
+        // Заголовки исходного ответа не переносим: тело раскодировано и
+        // пересобрано, а content-length и content-encoding от него уже врут.
+        return new Response(JSON.stringify(body), {
+          status: response.status,
+          statusText: response.statusText,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    },
 
     // Только pkce, и добавить сюда "state" нельзя.
     //
