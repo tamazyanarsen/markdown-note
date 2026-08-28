@@ -50,9 +50,23 @@ export function VKID(
 
     token: VK_TOKEN_URL,
 
-    // VK ID требует PKCE; state добавляем сами — Auth.js по умолчанию
-    // ограничивается pkce, а VK возвращает state в callback'е.
-    checks: ["pkce", "state"],
+    // Только pkce, и добавить сюда "state" нельзя.
+    //
+    // Auth.js кладёт в state JWE в compact-сериализации, где части разделены
+    // точками. VK ID описывает state как строку из латиницы и цифр и молча
+    // вырезает из значения всё остальное — точки в том числе. Обратно на
+    // callback приходит строка без разделителей, сравнение с cookie не
+    // сходится, и вход падает с
+    //   [auth][cause]: unexpected "state" response parameter value
+    // причём отличие видно только посимвольным сравнением: длина и алфавит
+    // те же самые.
+    //
+    // От CSRF здесь защищает PKCE: code_verifier лежит в httpOnly-cookie
+    // браузера, и подсунутый жертве чужой code не обменяется на токен.
+    // OAuth 2.1 прямо допускает PKCE вместо state, а Auth.js при отсутствии
+    // "state" в checks передаёт oauth4webapi skipStateCheck — см.
+    // node_modules/@auth/core/lib/actions/callback/oauth/callback.js.
+    checks: ["pkce"],
 
     client: { token_endpoint_auth_method: "client_secret_post" },
 
