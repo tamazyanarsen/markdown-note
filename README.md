@@ -131,9 +131,11 @@ Compose поднимает Postgres, одноразовый контейнер �
 стартует только после его успешного выхода) и само приложение.
 
 Наружу не смотрит ничего: Postgres доступен только внутри сети compose,
-приложение — на `127.0.0.1:3000`. TLS и 80/443 держит системный nginx,
-конфиг для него — [`deploy/md-note.nginx.conf`](deploy/md-note.nginx.conf),
-сертификат выписывает `certbot --nginx`.
+приложение — на `127.0.0.1:3000`. TLS и 80/443 держит системный nginx:
+настройки прокси — [`deploy/md-note-proxy.conf`](deploy/md-note-proxy.conf),
+готовый `server`-блок для своего домена —
+[`deploy/md-note.nginx.conf`](deploy/md-note.nginx.conf). Если домен на
+сервере уже настроен и сертификат выпущен, нужен только первый файл.
 
 Бэкапы — `scripts/backup.sh`, в cron на хосте:
 
