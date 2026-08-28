@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
+    // ES2020 нужен ради BigInt-литералов в src/lib/position.ts:
+    // дробные позиции считаются целыми числами, масштабированными на 10^10.
+    "target": "ES2020",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,

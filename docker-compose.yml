@@ -1,0 +1,29 @@
+# Локальная разработка: поднимает только Postgres.
+# Приложение запускается через `npm run dev`.
+# Продакшен-сборка — в docker-compose.prod.yml, деплой — docs/деплой.md.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: md-note-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mdnote
+      POSTGRES_PASSWORD: mdnote
+      POSTGRES_DB: mdnote
+      # citext сравнивает без учёта регистра, но сортировка всё равно
+      # берётся из локали — фиксируем её явно.
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+    ports:
+      # Слушаем только loopback: база не должна торчать наружу.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mdnote -d mdnote"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

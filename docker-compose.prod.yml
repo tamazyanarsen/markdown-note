@@ -1,0 +1,71 @@
+# Продакшен на своём сервере.
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# TLS и 80/443 держит системный nginx на хосте, а не контейнер: на сервере
+# он уже настроен и должен остаться единственным владельцем этих портов.
+# Конфиг — deploy/md-note.nginx.conf, пошаговая установка — docs/деплой.md.
+#
+# Наружу не смотрит ничего: Postgres виден только внутри сети compose,
+# приложение — только на loopback хоста, откуда его забирает nginx.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Одноразовый контейнер: применяет миграции и завершается.
+  # app стартует только после его успешного выхода.
+  migrate:
+    build:
+      context: .
+      target: migrator
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    ports:
+      # Только loopback: снаружи порт 3000 недоступен, ходит через nginx.
+      # Без 127.0.0.1 Docker пробьёт правило в iptables мимо ufw и порт
+      # окажется открыт в интернет.
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL}
+      AUTH_TRUST_HOST: "true"
+      AUTH_GITHUB_ID: ${AUTH_GITHUB_ID:-}
+      AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET:-}
+      AUTH_YANDEX_ID: ${AUTH_YANDEX_ID:-}
+      AUTH_YANDEX_SECRET: ${AUTH_YANDEX_SECRET:-}
+      AUTH_VK_ID: ${AUTH_VK_ID:-}
+      AUTH_VK_SECRET: ${AUTH_VK_SECRET:-}
+      ALLOWED_EMAILS: ${ALLOWED_EMAILS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
