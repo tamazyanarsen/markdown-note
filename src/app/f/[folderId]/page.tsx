@@ -81,13 +81,13 @@ export default async function FolderPage({ params }: PageProps<"/f/[folderId]">)
   if (view.mode === "owner") {
     return (
       <AppShell user={view.viewer!}>
-        <div className="p-8">{body}</div>
+        <div className="p-4 sm:p-8">{body}</div>
       </AppShell>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-10">
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
       {body}
       <footer className="mt-12 border-t border-border pt-4 text-xs text-muted">
         <Link href="/" className="hover:text-foreground">

@@ -1,6 +1,14 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/*
+ * Устройства с настоящим ховером — мышь и трекпад. Отдельный вариант нужен
+ * потому, что на тач-экране ховера нет вовсе: кнопка, спрятанная под
+ * group-hover, там не появляется никогда и остаётся недостижимой.
+ * Ширина экрана для этого не годится — планшет бывает и широким.
+ */
+@custom-variant hoverable (@media (hover: hover));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -33,4 +41,36 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/*
+ * iOS Safari увеличивает страницу при фокусе на поле со шрифтом мельче 16px
+ * и обратно её уже не отматывает. На широких экранах мелкий шрифт полей
+ * оставляем как есть.
+ */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select,
+  .cm-content {
+    font-size: 16px;
+  }
+}
+
+/*
+ * Чужой markdown не должен растягивать страницу по горизонтали: длинная
+ * ссылка без пробелов или широкая таблица иначе заставляют прокручивать
+ * весь документ вбок, и текст становится нечитаемым.
+ * У pre overflow-x уже проставлен в @tailwindcss/typography.
+ */
+.prose {
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 767px) {
+  /* display: block заставляет таблицу прокручиваться внутри себя. */
+  .prose table {
+    display: block;
+    overflow-x: auto;
+  }
 }

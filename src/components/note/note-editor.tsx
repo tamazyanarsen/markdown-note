@@ -95,8 +95,10 @@ export function NoteEditor({ note }: { note: Note }) {
   }
 
   return (
-    <div className="flex h-dvh flex-col">
-      <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
+    // h-full, а не h-dvh: высоту задаёт колонка каркаса, и на телефоне
+    // редактор не залезает под верхнюю полосу с кнопкой дерева.
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:px-4">
         <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
@@ -110,7 +112,7 @@ export function NoteEditor({ note }: { note: Note }) {
         <button
           type="button"
           onClick={() => setShowPreview((value) => !value)}
-          className="cursor-pointer rounded-md border border-border px-2 py-1 text-xs transition-colors hover:bg-surface"
+          className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-xs transition-colors hover:bg-surface"
         >
           {showPreview ? "Скрыть превью" : "Превью"}
         </button>
@@ -118,7 +120,7 @@ export function NoteEditor({ note }: { note: Note }) {
         <button
           type="button"
           onClick={() => void toggleVisibility()}
-          className={`cursor-pointer rounded-md border px-2 py-1 text-xs transition-colors ${
+          className={`cursor-pointer rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
             visibility === "public"
               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
               : "border-border hover:bg-surface"
@@ -137,7 +139,11 @@ export function NoteEditor({ note }: { note: Note }) {
       )}
 
       <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1 overflow-auto">
+        {/* На узком экране превью заменяет редактор, а не делит с ним ширину:
+            две колонки по ~180px не годятся ни для правки, ни для чтения. */}
+        <div
+          className={`min-w-0 flex-1 overflow-auto ${showPreview ? "hidden md:block" : ""}`}
+        >
           <CodeMirror
             value={content}
             onChange={setContent}
@@ -150,7 +156,7 @@ export function NoteEditor({ note }: { note: Note }) {
         </div>
 
         {showPreview && (
-          <div className="min-w-0 flex-1 overflow-auto border-l border-border">
+          <div className="min-w-0 flex-1 overflow-auto border-border md:border-l">
             <MarkdownPreview source={content} />
           </div>
         )}
@@ -214,7 +220,7 @@ function MarkdownPreview({ source }: { source: string }) {
 
   return (
     <article
-      className="prose prose-neutral dark:prose-invert max-w-none p-6"
+      className="prose prose-neutral dark:prose-invert max-w-none p-4 sm:p-6"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

@@ -3,7 +3,8 @@
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
@@ -46,10 +47,20 @@ export function TreeView({ tree, activeNoteId }: TreeViewProps) {
     () => new Set(collectFolderIds(tree)),
   );
 
-  // 5 пикселей до старта перетаскивания: иначе обычный клик по ссылке
-  // превращался бы в drag.
+  /**
+   * Мышь и палец разведены по разным сенсорам намеренно.
+   *
+   * Мышь: 5 пикселей до старта, иначе обычный клик по ссылке превращался бы
+   * в перетаскивание.
+   *
+   * Палец: та же дистанционная активация сделала бы дерево непрокручиваемым —
+   * вертикальный свайп уходил бы в drag вместо скролла. Поэтому здесь
+   * удержание: 250 мс на месте (допуск 5px на дрожание пальца). Короткий тап
+   * остаётся переходом по ссылке, свайп — прокруткой.
+   */
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
   );
 
   async function run(action: () => Promise<unknown>) {
@@ -131,7 +142,9 @@ export function TreeView({ tree, activeNoteId }: TreeViewProps) {
 
         <RootDropZone active={draggingId !== null} />
 
-        <ul className="flex flex-col gap-0.5 overflow-y-auto text-sm">
+        {/* min-h-0 flex-1 обязательны: без них список не получает
+            ограниченную высоту и overflow-y-auto не срабатывает. */}
+        <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto text-sm">
           {tree.length === 0 && (
             <li className="px-2 py-1 text-xs text-muted">Пока пусто.</li>
           )}
@@ -373,12 +386,15 @@ function RowActions({
   deleteConfirm: string;
 }) {
   return (
-    <span className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+    // На тач-экранах кнопки видны всегда: ховера там нет, и спрятанные под
+    // него действия были бы недоступны. Под мышью поведение прежнее.
+    <span className="flex shrink-0 gap-1 transition-opacity hoverable:opacity-0 hoverable:group-hover:opacity-100">
       <button
         type="button"
         onClick={onRename}
         title="Переименовать"
-        className="cursor-pointer px-1 text-xs text-muted hover:text-foreground"
+        aria-label="Переименовать"
+        className="cursor-pointer px-2 py-1 text-xs text-muted hover:text-foreground"
       >
         ✎
       </button>
@@ -388,7 +404,8 @@ function RowActions({
           if (window.confirm(deleteConfirm)) onDelete();
         }}
         title="Удалить"
-        className="cursor-pointer px-1 text-xs text-muted hover:text-red-600"
+        aria-label="Удалить"
+        className="cursor-pointer px-2 py-1 text-xs text-muted hover:text-red-600"
       >
         ✕
       </button>
@@ -414,12 +431,13 @@ function NodeActions({
 
   if (compact) {
     return (
-      <span className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+      <span className="flex shrink-0 gap-1 transition-opacity hoverable:opacity-0 hoverable:group-hover:opacity-100">
         <button
           type="button"
           onClick={() => ask("папки", onCreateFolder)}
           title="Новая папка внутри"
-          className="cursor-pointer px-1 text-xs text-muted hover:text-foreground"
+          aria-label="Новая папка внутри"
+          className="cursor-pointer px-2 py-1 text-xs text-muted hover:text-foreground"
         >
           +📁
         </button>
@@ -427,7 +445,8 @@ function NodeActions({
           type="button"
           onClick={() => ask("заметки", onCreateNote)}
           title="Новая заметка внутри"
-          className="cursor-pointer px-1 text-xs text-muted hover:text-foreground"
+          aria-label="Новая заметка внутри"
+          className="cursor-pointer px-2 py-1 text-xs text-muted hover:text-foreground"
         >
           +📄
         </button>

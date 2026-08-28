@@ -11,7 +11,7 @@ export default async function HomePage() {
 
   return (
     <AppShell user={user}>
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
         <h1 className="text-xl font-semibold">Заметки</h1>
         <p className="mt-2 max-w-prose text-sm text-muted">
           Выбери заметку слева или создай новую. Заметка приватна, пока её не

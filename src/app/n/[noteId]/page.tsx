@@ -64,9 +64,9 @@ export default async function NotePage({ params }: PageProps<"/n/[noteId]">) {
   const html = await renderMarkdown(note.content);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-10">
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
       <article>
-        <h1 className="text-3xl font-semibold">{note.title}</h1>
+        <h1 className="text-2xl font-semibold sm:text-3xl">{note.title}</h1>
         <p className="mt-1 text-xs text-muted">
           Обновлено{" "}
           <time dateTime={note.updatedAt.toISOString()}>
