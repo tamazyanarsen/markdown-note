@@ -98,38 +98,57 @@ export function NoteEditor({ note }: { note: Note }) {
     // h-full, а не h-dvh: высоту задаёт колонка каркаса, и на телефоне
     // редактор не залезает под верхнюю полосу с кнопкой дерева.
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:px-4">
+      {/*
+        Узкий экран — шапка в две строки: название отдельно, под ним ряд кнопок,
+        прижатый вправо. Раньше всё лежало в одном flex-wrap, и кнопки скакали
+        между строками при каждой смене подписи: «Превью» → «Скрыть превью»,
+        появление «Копировать ссылку» после публикации.
+
+        sm:contents растворяет обе обёртки на широком экране — там раскладка
+        осталась ровно прежней, одной строкой.
+      */}
+      <header className="flex flex-col gap-2 border-b border-border px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:px-4">
+        {/* flex-1 только с sm: в колонке он растянул бы поле по высоте. */}
         <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           onBlur={() => void save()}
-          className="min-w-40 flex-1 bg-transparent text-lg font-semibold outline-none"
+          className="w-full bg-transparent text-lg font-semibold outline-none sm:w-auto sm:min-w-40 sm:flex-1"
           aria-label="Название заметки"
         />
 
-        <SaveIndicator state={saveState} />
+        <div className="flex items-center justify-between gap-2 sm:contents">
+          <SaveIndicator state={saveState} />
 
-        <button
-          type="button"
-          onClick={() => setShowPreview((value) => !value)}
-          className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-xs transition-colors hover:bg-surface"
-        >
-          {showPreview ? "Скрыть превью" : "Превью"}
-        </button>
+          {/*
+            Кнопки прижаты к правому краю, поэтому растущая подпись у левой из
+            них не сдвигает соседей справа. Если ряд всё же не поместится —
+            горизонтальная прокрутка, а не перенос на новую строку.
+          */}
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto sm:contents">
+            <button
+              type="button"
+              onClick={() => setShowPreview((value) => !value)}
+              className="shrink-0 cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-xs transition-colors hover:bg-surface"
+            >
+              {showPreview ? "Скрыть превью" : "Превью"}
+            </button>
 
-        <button
-          type="button"
-          onClick={() => void toggleVisibility()}
-          className={`cursor-pointer rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
-            visibility === "public"
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-              : "border-border hover:bg-surface"
-          }`}
-        >
-          {visibility === "public" ? "Опубликована" : "Опубликовать"}
-        </button>
+            <button
+              type="button"
+              onClick={() => void toggleVisibility()}
+              className={`shrink-0 cursor-pointer rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+                visibility === "public"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  : "border-border hover:bg-surface"
+              }`}
+            >
+              {visibility === "public" ? "Опубликована" : "Опубликовать"}
+            </button>
 
-        {visibility === "public" && <CopyLinkButton noteId={note.id} />}
+            {visibility === "public" && <CopyLinkButton noteId={note.id} />}
+          </div>
+        </div>
       </header>
 
       {error && (
@@ -185,6 +204,8 @@ function SaveIndicator({ state }: { state: SaveState }) {
 function CopyLinkButton({ noteId }: { noteId: string }) {
   const [copied, setCopied] = useState(false);
 
+  // min-w держит ширину по длинной подписи: иначе на две секунды, пока висит
+  // «Скопировано», кнопка сжималась бы и утаскивала за собой соседей слева.
   return (
     <button
       type="button"
@@ -193,7 +214,7 @@ function CopyLinkButton({ noteId }: { noteId: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="cursor-pointer rounded-md border border-border px-2 py-1 text-xs transition-colors hover:bg-surface"
+      className="min-w-32 shrink-0 cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-xs transition-colors hover:bg-surface"
     >
       {copied ? "Скопировано" : "Копировать ссылку"}
     </button>
