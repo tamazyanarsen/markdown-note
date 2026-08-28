@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell";
 import { NoteEditor } from "@/components/note/note-editor";
+import { PublicFooter } from "@/components/public-footer";
 import { getNoteForViewer } from "@/domain/notes";
 import { markdownExcerpt, renderMarkdown } from "@/lib/markdown";
 import { getCurrentUser } from "@/lib/session";
@@ -66,8 +66,8 @@ export default async function NotePage({ params }: PageProps<"/n/[noteId]">) {
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
       <article>
-        <h1 className="text-2xl font-semibold sm:text-3xl">{note.title}</h1>
-        <p className="mt-1 text-xs text-muted">
+        <h1 className="font-heading text-2xl font-semibold sm:text-3xl">{note.title}</h1>
+        <p className="mt-1 text-xs text-muted-foreground">
           Обновлено{" "}
           <time dateTime={note.updatedAt.toISOString()}>
             {note.updatedAt.toLocaleDateString("ru-RU", {
@@ -84,11 +84,7 @@ export default async function NotePage({ params }: PageProps<"/n/[noteId]">) {
         />
       </article>
 
-      <footer className="mt-12 border-t border-border pt-4 text-xs text-muted">
-        <Link href="/" className="hover:text-foreground">
-          md-note
-        </Link>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

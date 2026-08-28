@@ -3,12 +3,26 @@
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import CodeMirror from "@uiw/react-codemirror";
+import {
+  CheckIcon,
+  EyeIcon,
+  EyeOffIcon,
+  GlobeIcon,
+  LinkIcon,
+  LoaderIcon,
+  LockIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { Note } from "@/db/schema";
 import { ApiError, apiFetch } from "@/lib/api-client";
 import { renderMarkdown } from "@/lib/markdown";
+import { cn } from "@/lib/utils";
 
 import { usePrefersDark } from "./use-prefers-dark";
 
@@ -25,7 +39,6 @@ export function NoteEditor({ note }: { note: Note }) {
   const [content, setContent] = useState(note.content);
   const [visibility, setVisibility] = useState(note.visibility);
   const [saveState, setSaveState] = useState<SaveState>("saved");
-  const [error, setError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
   // Сравниваем с последним сохранённым состоянием, а не с исходным:
@@ -44,7 +57,6 @@ export function NoteEditor({ note }: { note: Note }) {
     if (Object.keys(payload).length === 0) return;
 
     setSaveState("saving");
-    setError(null);
 
     try {
       await apiFetch(`/api/notes/${note.id}`, { method: "PATCH", json: payload });
@@ -54,7 +66,7 @@ export function NoteEditor({ note }: { note: Note }) {
       if (payload.title !== undefined) router.refresh();
     } catch (cause) {
       setSaveState("error");
-      setError(cause instanceof ApiError ? cause.message : "Не удалось сохранить.");
+      toast.error(cause instanceof ApiError ? cause.message : "Не удалось сохранить.");
     }
   }, [content, note.id, router, title]);
 
@@ -82,15 +94,21 @@ export function NoteEditor({ note }: { note: Note }) {
 
   async function toggleVisibility() {
     const action = visibility === "public" ? "make-private" : "publish";
-    setError(null);
     try {
       const updated = await apiFetch<Note>(`/api/notes/${note.id}/${action}`, {
         method: "POST",
       });
       setVisibility(updated.visibility);
+      toast.success(
+        updated.visibility === "public"
+          ? "Заметка опубликована — ссылка работает для всех."
+          : "Заметка снова приватна.",
+      );
       router.refresh();
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "Не удалось изменить доступ.");
+      toast.error(
+        cause instanceof ApiError ? cause.message : "Не удалось изменить доступ.",
+      );
     }
   }
 
@@ -105,16 +123,19 @@ export function NoteEditor({ note }: { note: Note }) {
         появление «Копировать ссылку» после публикации.
 
         sm:contents растворяет обе обёртки на широком экране — там раскладка
-        осталась ровно прежней, одной строкой.
+        остаётся одной строкой.
       */}
-      <header className="flex flex-col gap-2 border-b border-border px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:px-4">
-        {/* flex-1 только с sm: в колонке он растянул бы поле по высоте. */}
-        <input
+      <header className="flex flex-col gap-2 border-b px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:px-4">
+        {/* Поле без рамки: это заголовок страницы, а не форма. Рамка
+            проявляется по наведению и фокусу — чтобы было видно, что оно
+            редактируемое. flex-1 только с sm: в колонке он растянул бы поле
+            по высоте. */}
+        <Input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           onBlur={() => void save()}
-          className="w-full bg-transparent text-lg font-semibold outline-none sm:w-auto sm:min-w-40 sm:flex-1"
           aria-label="Название заметки"
+          className="h-9 w-full border-transparent font-heading text-lg font-semibold shadow-none hover:border-input md:text-lg dark:bg-transparent sm:w-auto sm:min-w-40 sm:flex-1"
         />
 
         <div className="flex items-center justify-between gap-2 sm:contents">
@@ -126,42 +147,38 @@ export function NoteEditor({ note }: { note: Note }) {
             горизонтальная прокрутка, а не перенос на новую строку.
           */}
           <div className="flex min-w-0 items-center gap-2 overflow-x-auto sm:contents">
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowPreview((value) => !value)}
-              className="shrink-0 cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-xs transition-colors hover:bg-surface"
             >
+              {showPreview ? <EyeOffIcon /> : <EyeIcon />}
               {showPreview ? "Скрыть превью" : "Превью"}
-            </button>
+            </Button>
 
-            <button
-              type="button"
+            <Button
+              variant={visibility === "public" ? "secondary" : "outline"}
+              size="sm"
               onClick={() => void toggleVisibility()}
-              className={`shrink-0 cursor-pointer rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
-                visibility === "public"
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                  : "border-border hover:bg-surface"
-              }`}
+              className={cn(visibility === "public" && "text-success")}
             >
+              {visibility === "public" ? <GlobeIcon /> : <LockIcon />}
               {visibility === "public" ? "Опубликована" : "Опубликовать"}
-            </button>
+            </Button>
 
             {visibility === "public" && <CopyLinkButton noteId={note.id} />}
           </div>
         </div>
       </header>
 
-      {error && (
-        <p className="border-b border-red-500/40 bg-red-500/10 px-4 py-1.5 text-xs text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      )}
-
       <div className="flex min-h-0 flex-1">
         {/* На узком экране превью заменяет редактор, а не делит с ним ширину:
             две колонки по ~180px не годятся ни для правки, ни для чтения. */}
         <div
-          className={`min-w-0 flex-1 overflow-auto ${showPreview ? "hidden md:block" : ""}`}
+          className={cn(
+            "min-w-0 flex-1 overflow-auto",
+            showPreview && "hidden md:block",
+          )}
         >
           <CodeMirror
             value={content}
@@ -175,7 +192,7 @@ export function NoteEditor({ note }: { note: Note }) {
         </div>
 
         {showPreview && (
-          <div className="min-w-0 flex-1 overflow-auto border-border md:border-l">
+          <div className="min-w-0 flex-1 overflow-auto md:border-l">
             <MarkdownPreview source={content} />
           </div>
         )}
@@ -185,17 +202,22 @@ export function NoteEditor({ note }: { note: Note }) {
 }
 
 function SaveIndicator({ state }: { state: SaveState }) {
-  const label = {
-    saved: "Сохранено",
-    saving: "Сохранение…",
-    dirty: "Есть изменения",
-    error: "Ошибка сохранения",
+  const { label, icon } = {
+    saved: { label: "Сохранено", icon: <CheckIcon /> },
+    saving: { label: "Сохранение…", icon: <LoaderIcon className="animate-spin" /> },
+    dirty: { label: "Есть изменения", icon: null },
+    error: { label: "Ошибка сохранения", icon: <TriangleAlertIcon /> },
   }[state];
 
   return (
     <span
-      className={`text-xs ${state === "error" ? "text-red-600 dark:text-red-400" : "text-muted"}`}
+      role="status"
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 text-xs [&_svg]:size-3.5",
+        state === "error" ? "text-destructive" : "text-muted-foreground",
+      )}
     >
+      {icon}
       {label}
     </span>
   );
@@ -207,17 +229,19 @@ function CopyLinkButton({ noteId }: { noteId: string }) {
   // min-w держит ширину по длинной подписи: иначе на две секунды, пока висит
   // «Скопировано», кнопка сжималась бы и утаскивала за собой соседей слева.
   return (
-    <button
-      type="button"
+    <Button
+      variant="outline"
+      size="sm"
+      className="min-w-40"
       onClick={async () => {
         await navigator.clipboard.writeText(`${window.location.origin}/n/${noteId}`);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="min-w-32 shrink-0 cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-xs transition-colors hover:bg-surface"
     >
+      {copied ? <CheckIcon /> : <LinkIcon />}
       {copied ? "Скопировано" : "Копировать ссылку"}
-    </button>
+    </Button>
   );
 }
 

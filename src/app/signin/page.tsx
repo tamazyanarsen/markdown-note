@@ -1,5 +1,14 @@
 import { redirect } from "next/navigation";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { getEnabledProviders, signIn } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/session";
 
@@ -25,45 +34,47 @@ export default async function SignInPage({
       : null;
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold">md-note</h1>
-        <p className="mt-1 text-sm text-muted">Заметки в markdown с публичными ссылками.</p>
-      </div>
-
+    <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-4 p-6">
       {errorText && (
-        <p className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
-          {errorText}
-        </p>
+        <Alert variant="destructive">
+          <AlertTitle>Вход не удался</AlertTitle>
+          <AlertDescription>{errorText}</AlertDescription>
+        </Alert>
       )}
 
-      {providers.length === 0 ? (
-        <p className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-muted">
-          Ни один OAuth-провайдер не настроен. Заполни{" "}
-          <code className="font-mono">AUTH_GITHUB_ID</code> и{" "}
-          <code className="font-mono">AUTH_GITHUB_SECRET</code> в{" "}
-          <code className="font-mono">.env</code>.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {providers.map((provider) => (
-            <form
-              key={provider.id}
-              action={async () => {
-                "use server";
-                await signIn(provider.id, { redirectTo: "/" });
-              }}
-            >
-              <button
-                type="submit"
-                className="w-full cursor-pointer rounded-md border border-border bg-surface px-4 py-2.5 text-sm font-medium transition-colors hover:bg-border"
-              >
-                Войти через {provider.name}
-              </button>
-            </form>
-          ))}
-        </div>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">md-note</CardTitle>
+          <CardDescription>Заметки в markdown с публичными ссылками.</CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          {providers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Ни один OAuth-провайдер не настроен. Заполни{" "}
+              <code className="font-mono">AUTH_GITHUB_ID</code> и{" "}
+              <code className="font-mono">AUTH_GITHUB_SECRET</code> в{" "}
+              <code className="font-mono">.env</code>.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {providers.map((provider) => (
+                <form
+                  key={provider.id}
+                  action={async () => {
+                    "use server";
+                    await signIn(provider.id, { redirectTo: "/" });
+                  }}
+                >
+                  <Button type="submit" variant="outline" size="lg" className="w-full">
+                    Войти через {provider.name}
+                  </Button>
+                </form>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </main>
   );
 }

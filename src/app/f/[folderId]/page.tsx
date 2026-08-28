@@ -1,8 +1,11 @@
+import { GlobeIcon } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Badge } from "@/components/ui/badge";
+
 import { AppShell } from "@/components/app-shell";
+import { PublicFooter } from "@/components/public-footer";
 import { StaticTree } from "@/components/tree/static-tree";
 import {
   findSubtree,
@@ -81,7 +84,7 @@ export default async function FolderPage({ params }: PageProps<"/f/[folderId]">)
   if (view.mode === "owner") {
     return (
       <AppShell user={view.viewer!}>
-        <div className="p-4 sm:p-8">{body}</div>
+        <div className="mx-auto w-full max-w-3xl p-4 sm:p-8">{body}</div>
       </AppShell>
     );
   }
@@ -89,11 +92,7 @@ export default async function FolderPage({ params }: PageProps<"/f/[folderId]">)
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
       {body}
-      <footer className="mt-12 border-t border-border pt-4 text-xs text-muted">
-        <Link href="/" className="hover:text-foreground">
-          md-note
-        </Link>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }
@@ -101,12 +100,16 @@ export default async function FolderPage({ params }: PageProps<"/f/[folderId]">)
 function FolderBody({ root, publicOnly }: { root: FolderNode; publicOnly: boolean }) {
   return (
     <>
-      <h1 className="text-2xl font-semibold">{root.title}</h1>
-      {publicOnly && (
-        <p className="mt-1 text-xs text-muted">
-          Показаны только опубликованные заметки.
-        </p>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="font-heading text-2xl font-semibold">{root.title}</h1>
+        {publicOnly && (
+          <Badge variant="secondary" title="Показаны только опубликованные заметки">
+            <GlobeIcon />
+            только публичное
+          </Badge>
+        )}
+      </div>
+
       <div className="mt-6">
         <StaticTree nodes={root.children} />
       </div>

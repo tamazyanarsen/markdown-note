@@ -1,6 +1,13 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import {
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarSeparator,
+} from "@/components/ui/sidebar";
 import { loadOwnerTree } from "@/db/queries/tree";
 import type { CurrentUser } from "@/lib/session";
 
@@ -8,12 +15,14 @@ import { AppShellFrame } from "./app-shell-frame";
 import { SignOutButton } from "./sign-out-button";
 import { TreeView } from "./tree/tree-view";
 
+/** Cookie, в которой SidebarProvider держит свёрнутость колонки. */
+const SIDEBAR_COOKIE_NAME = "sidebar_state";
+
 /**
  * Оболочка личного кабинета: дерево и содержимое страницы.
  *
- * Раскладку — две колонки на широком экране, выдвижная панель на узком —
- * держит AppShellFrame. Здесь остаётся только загрузка дерева и состав
- * боковой панели.
+ * Раскладку держит AppShellFrame. Здесь остаётся только загрузка дерева
+ * и состав боковой панели.
  */
 export async function AppShell({
   user,
@@ -24,26 +33,43 @@ export async function AppShell({
   activeNoteId?: string;
   children: ReactNode;
 }) {
-  const tree = await loadOwnerTree(user.id);
+  const [tree, cookieStore] = await Promise.all([loadOwnerTree(user.id), cookies()]);
+
+  // Читаем cookie на сервере, чтобы свёрнутая колонка не разворачивалась
+  // на мгновение при загрузке страницы.
+  const defaultOpen = cookieStore.get(SIDEBAR_COOKIE_NAME)?.value !== "false";
 
   return (
     <AppShellFrame
+      defaultOpen={defaultOpen}
       sidebar={
         <>
-          <div className="flex items-baseline justify-between gap-2">
-            <Link href="/" className="text-base font-semibold">
-              md-note
+          <SidebarHeader>
+            <Link href="/" className="flex flex-col gap-0.5 px-2 py-1">
+              <span className="font-heading text-sm font-semibold">md-note</span>
+              <span
+                className="truncate text-xs text-muted-foreground"
+                title={user.email ?? user.id}
+              >
+                {user.email ?? user.name ?? "аккаунт"}
+              </span>
             </Link>
-            <span className="truncate text-xs text-muted" title={user.email ?? user.id}>
-              {user.email ?? user.name ?? "аккаунт"}
-            </span>
-          </div>
+          </SidebarHeader>
 
-          <div className="min-h-0 flex-1">
+          <SidebarSeparator />
+
+          {/* overflow-hidden вместо прокрутки по умолчанию: внутри дерева
+              прокручивается только список, а кнопки «Папка»/«Заметка»
+              остаются на месте. */}
+          <SidebarContent className="overflow-hidden">
             <TreeView tree={tree} activeNoteId={activeNoteId} />
-          </div>
+          </SidebarContent>
 
-          <SignOutButton className="w-full cursor-pointer rounded-md border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:bg-surface" />
+          <SidebarSeparator />
+
+          <SidebarFooter>
+            <SignOutButton />
+          </SidebarFooter>
         </>
       }
     >

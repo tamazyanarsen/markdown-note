@@ -1,3 +1,6 @@
+import { LogOutIcon } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import { signOut } from "@/lib/auth";
 
 export function SignOutButton({ className }: { className?: string }) {
@@ -8,15 +11,15 @@ export function SignOutButton({ className }: { className?: string }) {
         await signOut({ redirectTo: "/signin" });
       }}
     >
-      <button
+      <Button
         type="submit"
-        className={
-          className ??
-          "cursor-pointer rounded-md border border-border px-3 py-1.5 text-sm text-muted transition-colors hover:bg-surface"
-        }
+        variant="ghost"
+        size="sm"
+        className={className ?? "w-full justify-start text-muted-foreground"}
       >
+        <LogOutIcon />
         Выйти
-      </button>
+      </Button>
     </form>
   );
 }

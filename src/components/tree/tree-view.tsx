@@ -12,12 +12,61 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import {
+  ChevronRightIcon,
+  FilePlusIcon,
+  FileTextIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  FolderPlusIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  Trash2Icon,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  SidebarGroup,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar";
 import type { TreeNode } from "@/db/queries/tree";
 import { ApiError, apiFetch } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 
 import { locate, resolveMove, type DropTarget } from "./drop-target";
 
@@ -25,6 +74,14 @@ interface TreeViewProps {
   tree: TreeNode[];
   /** Заметка, открытая сейчас — подсвечивается в дереве. */
   activeNoteId?: string;
+}
+
+/** Что именно создаём и где — состояние диалога с названием. */
+interface CreateIntent {
+  kind: "folder" | "note";
+  parentId: string | null;
+  /** Куда кладём: для заголовка диалога. */
+  parentTitle: string;
 }
 
 /** id droppable-зоны кодирует, что именно означает бросок в это место. */
@@ -40,9 +97,12 @@ function parseDropId(id: string): DropTarget | null {
 
 export function TreeView({ tree, activeNoteId }: TreeViewProps) {
   const router = useRouter();
+  const { setOpenMobile } = useSidebar();
   const [, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState<CreateIntent | null>(null);
+  const [newTitle, setNewTitle] = useState("");
+  const [deleting, setDeleting] = useState<TreeNode | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(collectFolderIds(tree)),
   );
@@ -64,12 +124,11 @@ export function TreeView({ tree, activeNoteId }: TreeViewProps) {
   );
 
   async function run(action: () => Promise<unknown>) {
-    setError(null);
     try {
       await action();
       startTransition(() => router.refresh());
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "Что-то пошло не так.");
+      toast.error(cause instanceof ApiError ? cause.message : "Что-то пошло не так.");
     }
   }
 
@@ -107,6 +166,37 @@ export function TreeView({ tree, activeNoteId }: TreeViewProps) {
     );
   }
 
+  // Поле диалога живёт здесь, а не внутри него: так его чистит обработчик
+  // открытия, и не нужен эффект, сбрасывающий состояние после рендера.
+  function openCreate(intent: CreateIntent) {
+    setNewTitle("");
+    setCreating(intent);
+  }
+
+  async function create(title: string) {
+    if (!creating) return;
+    const { kind, parentId } = creating;
+    setCreating(null);
+
+    await run(() =>
+      kind === "folder"
+        ? apiFetch("/api/folders", { method: "POST", json: { title, parentId } })
+        : apiFetch("/api/notes", { method: "POST", json: { title, folderId: parentId } }),
+    );
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    const node = deleting;
+    setDeleting(null);
+
+    await run(() =>
+      apiFetch(`/api/${node.kind === "folder" ? "folders" : "notes"}/${node.id}`, {
+        method: "DELETE",
+      }),
+    );
+  }
+
   const draggedNode = draggingId ? locate(tree, draggingId)?.node : null;
 
   return (
@@ -119,34 +209,47 @@ export function TreeView({ tree, activeNoteId }: TreeViewProps) {
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >
-      <div className="flex h-full flex-col gap-2">
-        <NodeActions
-          label="В корне"
-          onCreateFolder={(title) =>
-            run(() =>
-              apiFetch("/api/folders", { method: "POST", json: { title, parentId: null } }),
-            )
-          }
-          onCreateNote={(title) =>
-            run(() =>
-              apiFetch("/api/notes", { method: "POST", json: { title, folderId: null } }),
-            )
-          }
-        />
-
-        {error && (
-          <p className="rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs text-red-600 dark:text-red-400">
-            {error}
-          </p>
-        )}
+      <SidebarGroup className="h-full min-h-0 gap-2">
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() =>
+              openCreate({ kind: "folder", parentId: null, parentTitle: "корне" })
+            }
+          >
+            <FolderPlusIcon />
+            Папка
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() =>
+              openCreate({ kind: "note", parentId: null, parentTitle: "корне" })
+            }
+          >
+            <FilePlusIcon />
+            Заметка
+          </Button>
+        </div>
 
         <RootDropZone active={draggingId !== null} />
 
         {/* min-h-0 flex-1 обязательны: без них список не получает
-            ограниченную высоту и overflow-y-auto не срабатывает. */}
-        <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto text-sm">
+            ограниченную высоту и overflow-y-auto не срабатывает.
+            Клик по ссылке закрывает выехавшую панель на телефоне — иначе
+            она перекрыла бы страницу, на которую только что перешли.
+            Кнопки ссылками не являются и панель не закрывают. */}
+        <SidebarMenu
+          className="min-h-0 flex-1 gap-0.5 overflow-y-auto"
+          onClick={(event) => {
+            if ((event.target as HTMLElement).closest("a")) setOpenMobile(false);
+          }}
+        >
           {tree.length === 0 && (
-            <li className="px-2 py-1 text-xs text-muted">Пока пусто.</li>
+            <li className="px-2 py-1 text-xs text-muted-foreground">Пока пусто.</li>
           )}
           {tree.map((node) => (
             <TreeItem
@@ -157,19 +260,36 @@ export function TreeView({ tree, activeNoteId }: TreeViewProps) {
               onToggle={toggle}
               activeNoteId={activeNoteId}
               draggingId={draggingId}
+              onCreate={openCreate}
+              onDelete={setDeleting}
               run={run}
             />
           ))}
-        </ul>
-      </div>
+        </SidebarMenu>
+      </SidebarGroup>
 
       <DragOverlay dropAnimation={null}>
         {draggedNode && (
-          <span className="rounded-md border border-border bg-background px-2 py-1 text-sm shadow-lg">
+          <Badge variant="outline" className="h-7 bg-popover px-2 shadow-lg">
+            {draggedNode.kind === "folder" ? <FolderIcon /> : <FileTextIcon />}
             {draggedNode.title}
-          </span>
+          </Badge>
         )}
       </DragOverlay>
+
+      <CreateDialog
+        intent={creating}
+        title={newTitle}
+        onTitleChange={setNewTitle}
+        onCancel={() => setCreating(null)}
+        onSubmit={create}
+      />
+
+      <DeleteDialog
+        node={deleting}
+        onCancel={() => setDeleting(null)}
+        onConfirm={confirmDelete}
+      />
     </DndContext>
   );
 }
@@ -191,9 +311,13 @@ function RootDropZone({ active }: { active: boolean }) {
     <div
       ref={setNodeRef}
       aria-hidden={!active}
-      className={`rounded-md border border-dashed px-2 py-1.5 text-center text-xs transition-all ${
-        active ? "opacity-100" : "pointer-events-none opacity-0"
-      } ${isOver ? "border-foreground bg-surface" : "border-border text-muted"}`}
+      className={cn(
+        "rounded-md border border-dashed px-2 py-1.5 text-center text-xs transition-all",
+        active ? "opacity-100" : "pointer-events-none opacity-0",
+        isOver
+          ? "border-sidebar-ring bg-sidebar-accent text-sidebar-accent-foreground"
+          : "text-muted-foreground",
+      )}
     >
       Перенести в корень
     </div>
@@ -207,6 +331,8 @@ interface TreeItemProps {
   onToggle: (folderId: string) => void;
   activeNoteId?: string;
   draggingId: string | null;
+  onCreate: (intent: CreateIntent) => void;
+  onDelete: (node: TreeNode) => void;
   run: (action: () => Promise<unknown>) => Promise<void>;
 }
 
@@ -217,10 +343,11 @@ function TreeItem({
   onToggle,
   activeNoteId,
   draggingId,
+  onCreate,
+  onDelete,
   run,
 }: TreeItemProps) {
   const [renaming, setRenaming] = useState(false);
-  const indent = { paddingLeft: `${depth * 12 + 8}px` };
 
   const {
     setNodeRef: setDragRef,
@@ -240,39 +367,45 @@ function TreeItem({
   const isBeingDragged = draggingId === node.id;
   const isFolder = node.kind === "folder";
   const isOpen = isFolder && expanded.has(node.id);
+  const Icon = isFolder ? (isOpen ? FolderOpenIcon : FolderIcon) : FileTextIcon;
 
   return (
-    <li className="relative">
+    <SidebarMenuItem className="relative">
       {/* Тонкая полоса сверху: бросок сюда означает «поставить перед». */}
       {draggingId && (
         <div
           ref={setBeforeRef}
-          className={`absolute inset-x-0 top-0 z-10 h-2 -translate-y-1 rounded ${
-            isOverBefore ? "bg-foreground/60" : ""
-          }`}
+          className={cn(
+            "absolute inset-x-0 top-0 z-10 h-2 -translate-y-1 rounded",
+            isOverBefore && "bg-sidebar-ring",
+          )}
         />
       )}
 
       <div
         ref={isFolder ? setIntoRef : undefined}
-        className={`group flex items-center gap-1 rounded-md py-1 pr-1 transition-colors ${
-          isBeingDragged ? "opacity-40" : ""
-        } ${
-          isFolder && isOverInto
-            ? "bg-foreground/10 ring-1 ring-foreground/30"
-            : "hover:bg-surface"
-        } ${node.id === activeNoteId ? "bg-surface font-medium" : ""}`}
-        style={indent}
+        style={{ paddingLeft: depth * 12 }}
+        className={cn(
+          "group/row flex items-center gap-0.5 rounded-md transition-colors",
+          isBeingDragged && "opacity-40",
+          isFolder && isOverInto && "bg-sidebar-accent ring-1 ring-sidebar-ring",
+        )}
       >
-        {isFolder && (
-          <button
-            type="button"
+        {isFolder ? (
+          <Button
+            variant="ghost"
+            size="icon-xs"
             onClick={() => onToggle(node.id)}
-            className="w-4 shrink-0 cursor-pointer text-muted"
             aria-label={isOpen ? "Свернуть" : "Развернуть"}
+            aria-expanded={isOpen}
+            className="shrink-0 text-muted-foreground"
           >
-            {isOpen ? "▾" : "▸"}
-          </button>
+            <ChevronRightIcon className={cn("transition-transform", isOpen && "rotate-90")} />
+          </Button>
+        ) : (
+          // Пустышка вместо стрелки: без неё заметки и папки одного уровня
+          // разъезжаются по горизонтали.
+          <span aria-hidden className="w-6 shrink-0" />
         )}
 
         {renaming ? (
@@ -291,73 +424,45 @@ function TreeItem({
           />
         ) : (
           <>
+            {/* Ручка перетаскивания — обёртка вокруг ссылки, а не сама ссылка:
+                dnd-kit ставит на элемент role="button", и на <a> это сломало бы
+                и семантику, и переход по клику. */}
             <span
               ref={setDragRef}
               {...dragListeners}
               {...dragAttributes}
               className="min-w-0 flex-1 cursor-grab active:cursor-grabbing"
             >
-              <Link
-                href={isFolder ? `/f/${node.id}` : `/n/${node.id}`}
-                className={`block truncate ${isFolder ? "font-medium" : ""}`}
-              >
-                {node.title}
-              </Link>
+              <SidebarMenuButton asChild isActive={node.id === activeNoteId}>
+                <Link href={isFolder ? `/f/${node.id}` : `/n/${node.id}`}>
+                  <Icon className="text-muted-foreground" />
+                  <span className={cn(isFolder && "font-medium")}>{node.title}</span>
+                </Link>
+              </SidebarMenuButton>
             </span>
 
             {node.kind === "note" && node.visibility === "public" && (
-              <span
+              <Badge
+                variant="outline"
                 title="Заметка опубликована"
-                className="shrink-0 rounded bg-emerald-500/15 px-1 text-[10px] text-emerald-700 dark:text-emerald-400"
+                className="shrink-0 border-success/40 text-success"
               >
                 public
-              </span>
+              </Badge>
             )}
 
-            {isFolder && (
-              <NodeActions
-                compact
-                label={node.title}
-                onCreateFolder={(title) =>
-                  run(() =>
-                    apiFetch("/api/folders", {
-                      method: "POST",
-                      json: { title, parentId: node.id },
-                    }),
-                  )
-                }
-                onCreateNote={(title) =>
-                  run(() =>
-                    apiFetch("/api/notes", {
-                      method: "POST",
-                      json: { title, folderId: node.id },
-                    }),
-                  )
-                }
-              />
-            )}
-
-            <RowActions
+            <RowMenu
+              node={node}
+              onCreate={onCreate}
               onRename={() => setRenaming(true)}
-              onDelete={() =>
-                run(() =>
-                  apiFetch(`/api/${isFolder ? "folders" : "notes"}/${node.id}`, {
-                    method: "DELETE",
-                  }),
-                )
-              }
-              deleteConfirm={
-                isFolder
-                  ? `Удалить папку «${node.title}» вместе со всем содержимым?`
-                  : `Удалить заметку «${node.title}»?`
-              }
+              onDelete={() => onDelete(node)}
             />
           </>
         )}
       </div>
 
       {isOpen && node.kind === "folder" && node.children.length > 0 && (
-        <ul className="flex flex-col gap-0.5">
+        <SidebarMenu className="gap-0.5">
           {node.children.map((child) => (
             <TreeItem
               key={child.id}
@@ -367,110 +472,199 @@ function TreeItem({
               onToggle={onToggle}
               activeNoteId={activeNoteId}
               draggingId={draggingId}
+              onCreate={onCreate}
+              onDelete={onDelete}
               run={run}
             />
           ))}
-        </ul>
+        </SidebarMenu>
       )}
-    </li>
+    </SidebarMenuItem>
   );
 }
 
-function RowActions({
+/**
+ * Действия над строкой одним меню.
+ *
+ * Раньше это был ряд кнопок, спрятанный под group-hover. На тач-экране ховера
+ * нет, поэтому кнопки приходилось показывать всегда — и они съедали ширину
+ * у названия. Одна кнопка «…» помещается везде.
+ */
+function RowMenu({
+  node,
+  onCreate,
   onRename,
   onDelete,
-  deleteConfirm,
 }: {
+  node: TreeNode;
+  onCreate: (intent: CreateIntent) => void;
   onRename: () => void;
   onDelete: () => void;
-  deleteConfirm: string;
 }) {
+  const isFolder = node.kind === "folder";
+
   return (
-    // На тач-экранах кнопки видны всегда: ховера там нет, и спрятанные под
-    // него действия были бы недоступны. Под мышью поведение прежнее.
-    <span className="flex shrink-0 gap-1 transition-opacity hoverable:opacity-0 hoverable:group-hover:opacity-100">
-      <button
-        type="button"
-        onClick={onRename}
-        title="Переименовать"
-        aria-label="Переименовать"
-        className="cursor-pointer px-2 py-1 text-xs text-muted hover:text-foreground"
-      >
-        ✎
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          if (window.confirm(deleteConfirm)) onDelete();
-        }}
-        title="Удалить"
-        aria-label="Удалить"
-        className="cursor-pointer px-2 py-1 text-xs text-muted hover:text-red-600"
-      >
-        ✕
-      </button>
-    </span>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={`Действия: ${node.title}`}
+          // Под мышью кнопка появляется по наведению на строку, на тач-экране
+          // видна всегда. Открытое меню держит кнопку видимой в обоих случаях.
+          className="shrink-0 text-muted-foreground transition-opacity hoverable:opacity-0 hoverable:group-hover/row:opacity-100 hoverable:aria-expanded:opacity-100"
+        >
+          <MoreHorizontalIcon />
+        </Button>
+      </DropdownMenuTrigger>
+
+      {/* w-* перебивает ширину по триггеру: триггер здесь — иконка в 24px. */}
+      <DropdownMenuContent align="end" className="w-48 min-w-48">
+        {isFolder && (
+          <>
+            <DropdownMenuItem
+              onSelect={() =>
+                onCreate({
+                  kind: "folder",
+                  parentId: node.id,
+                  parentTitle: `«${node.title}»`,
+                })
+              }
+            >
+              <FolderPlusIcon />
+              Новая папка
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() =>
+                onCreate({
+                  kind: "note",
+                  parentId: node.id,
+                  parentTitle: `«${node.title}»`,
+                })
+              }
+            >
+              <FilePlusIcon />
+              Новая заметка
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+
+        <DropdownMenuItem onSelect={onRename}>
+          <PencilIcon />
+          Переименовать
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+          <Trash2Icon />
+          Удалить
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
-function NodeActions({
-  label,
-  compact,
-  onCreateFolder,
-  onCreateNote,
+/** Диалог с названием вместо window.prompt. */
+function CreateDialog({
+  intent,
+  title,
+  onTitleChange,
+  onCancel,
+  onSubmit,
 }: {
-  label: string;
-  compact?: boolean;
-  onCreateFolder: (title: string) => void;
-  onCreateNote: (title: string) => void;
+  intent: CreateIntent | null;
+  title: string;
+  onTitleChange: (title: string) => void;
+  onCancel: () => void;
+  onSubmit: (title: string) => void;
 }) {
-  const ask = (kind: "папки" | "заметки", create: (title: string) => void) => {
-    const title = window.prompt(`Название новой ${kind} в «${label}»`);
-    if (title?.trim()) create(title.trim());
-  };
-
-  if (compact) {
-    return (
-      <span className="flex shrink-0 gap-1 transition-opacity hoverable:opacity-0 hoverable:group-hover:opacity-100">
-        <button
-          type="button"
-          onClick={() => ask("папки", onCreateFolder)}
-          title="Новая папка внутри"
-          aria-label="Новая папка внутри"
-          className="cursor-pointer px-2 py-1 text-xs text-muted hover:text-foreground"
-        >
-          +📁
-        </button>
-        <button
-          type="button"
-          onClick={() => ask("заметки", onCreateNote)}
-          title="Новая заметка внутри"
-          aria-label="Новая заметка внутри"
-          className="cursor-pointer px-2 py-1 text-xs text-muted hover:text-foreground"
-        >
-          +📄
-        </button>
-      </span>
-    );
-  }
+  const isFolder = intent?.kind === "folder";
 
   return (
-    <div className="flex gap-2">
-      <button
-        type="button"
-        onClick={() => ask("папки", onCreateFolder)}
-        className="flex-1 cursor-pointer rounded-md border border-border px-2 py-1 text-xs transition-colors hover:bg-surface"
-      >
-        + Папка
-      </button>
-      <button
-        type="button"
-        onClick={() => ask("заметки", onCreateNote)}
-        className="flex-1 cursor-pointer rounded-md border border-border px-2 py-1 text-xs transition-colors hover:bg-surface"
-      >
-        + Заметка
-      </button>
-    </div>
+    <Dialog
+      open={intent !== null}
+      onOpenChange={(open) => {
+        if (!open) onCancel();
+      }}
+    >
+      <DialogContent>
+        <form
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = title.trim();
+            if (value) onSubmit(value);
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{isFolder ? "Новая папка" : "Новая заметка"}</DialogTitle>
+            <DialogDescription>
+              {isFolder ? "Папка" : "Заметка"} появится в {intent?.parentTitle}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-2">
+            <Label htmlFor="new-node-title">Название</Label>
+            <Input
+              id="new-node-title"
+              autoFocus
+              value={title}
+              onChange={(event) => onTitleChange(event.target.value)}
+              placeholder={isFolder ? "Например, «Рабочее»" : "Например, «Черновик»"}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Отмена
+            </Button>
+            <Button type="submit" disabled={title.trim() === ""}>
+              Создать
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Подтверждение удаления вместо window.confirm. */
+function DeleteDialog({
+  node,
+  onCancel,
+  onConfirm,
+}: {
+  node: TreeNode | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const isFolder = node?.kind === "folder";
+
+  return (
+    <AlertDialog
+      open={node !== null}
+      onOpenChange={(open) => {
+        if (!open) onCancel();
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {isFolder ? "Удалить папку" : "Удалить заметку"} «{node?.title}»?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {isFolder
+              ? "Вместе с папкой удалится всё её содержимое."
+              : "Заметка и её содержимое будут удалены."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Отмена</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={onConfirm}>
+            Удалить
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -487,7 +681,7 @@ function RenameField({
 
   return (
     <form
-      className="flex-1"
+      className="min-w-0 flex-1 py-0.5"
       onSubmit={(event) => {
         event.preventDefault();
         const title = value.trim();
@@ -495,7 +689,7 @@ function RenameField({
         else onCancel();
       }}
     >
-      <input
+      <Input
         autoFocus
         value={value}
         onChange={(event) => setValue(event.target.value)}
@@ -503,7 +697,7 @@ function RenameField({
         onKeyDown={(event) => {
           if (event.key === "Escape") onCancel();
         }}
-        className="w-full rounded border border-border bg-background px-1 py-0.5 text-sm outline-none"
+        className="h-7 text-sm"
       />
     </form>
   );
