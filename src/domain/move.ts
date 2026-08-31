@@ -1,7 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { folders, notes, type Folder, type Note } from "@/db/schema";
+import { folders, notes, type Folder, type NoteView } from "@/db/schema";
+import { noteColumns } from "@/domain/notes";
 import {
   folderMoveCycle,
   forbidden,
@@ -132,7 +133,7 @@ export async function moveNote(
   ownerId: string,
   noteId: string,
   input: MoveInput,
-): Promise<Note> {
+): Promise<NoteView> {
   return db.transaction(async (tx) => {
     const locked = await tx.execute<{ owner_id: string }>(sql`
       select owner_id
@@ -170,7 +171,7 @@ export async function moveNote(
         updatedAt: new Date(),
       })
       .where(and(eq(notes.id, noteId), eq(notes.ownerId, ownerId)))
-      .returning();
+      .returning(noteColumns);
 
     await rebalanceIfNeeded(tx, "notes", "folder_id", ownerId, input.targetFolderId);
 

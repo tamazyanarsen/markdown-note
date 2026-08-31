@@ -8,6 +8,13 @@
       "when": 1787633122121,
       "tag": "0000_early_newton_destine",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788198962925,
+      "tag": "0001_old_gambit",
+      "breakpoints": true
     }
   ]
 }

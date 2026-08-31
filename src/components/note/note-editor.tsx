@@ -19,7 +19,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { Note } from "@/db/schema";
+import type { NoteView } from "@/db/schema";
 import { ApiError, apiFetch } from "@/lib/api-client";
 import { renderMarkdown } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,7 @@ const AUTOSAVE_DELAY_MS = 800;
 
 type SaveState = "saved" | "saving" | "dirty" | "error";
 
-export function NoteEditor({ note }: { note: Note }) {
+export function NoteEditor({ note }: { note: NoteView }) {
   const router = useRouter();
   const prefersDark = usePrefersDark();
 
@@ -95,7 +95,7 @@ export function NoteEditor({ note }: { note: Note }) {
   async function toggleVisibility() {
     const action = visibility === "public" ? "make-private" : "publish";
     try {
-      const updated = await apiFetch<Note>(`/api/notes/${note.id}/${action}`, {
+      const updated = await apiFetch<NoteView>(`/api/notes/${note.id}/${action}`, {
         method: "POST",
       });
       setVisibility(updated.visibility);
@@ -140,38 +140,10 @@ export function NoteEditor({ note }: { note: Note }) {
 
         <div className="flex items-center justify-between gap-2 sm:contents">
           <SaveIndicator state={saveState} />
-
-          {/*
-            Кнопки прижаты к правому краю, поэтому растущая подпись у левой из
-            них не сдвигает соседей справа. Если ряд всё же не поместится —
-            горизонтальная прокрутка, а не перенос на новую строку.
-          */}
-          <div className="flex min-w-0 items-center gap-2 overflow-x-auto sm:contents">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowPreview((value) => !value)}
-            >
-              {showPreview ? <EyeOffIcon /> : <EyeIcon />}
-              {showPreview ? "Скрыть превью" : "Превью"}
-            </Button>
-
-            <Button
-              variant={visibility === "public" ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => void toggleVisibility()}
-              className={cn(visibility === "public" && "text-success")}
-            >
-              {visibility === "public" ? <GlobeIcon /> : <LockIcon />}
-              {visibility === "public" ? "Опубликована" : "Опубликовать"}
-            </Button>
-
-            {visibility === "public" && <CopyLinkButton noteId={note.id} />}
-          </div>
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 border-b">
         {/* На узком экране превью заменяет редактор, а не делит с ним ширину:
             две колонки по ~180px не годятся ни для правки, ни для чтения. */}
         <div
@@ -197,6 +169,35 @@ export function NoteEditor({ note }: { note: Note }) {
           </div>
         )}
       </div>
+      <footer>
+        {/*
+          Кнопки прижаты к правому краю, поэтому растущая подпись у левой из
+          них не сдвигает соседей справа. Если ряд всё же не поместится —
+          горизонтальная прокрутка, а не перенос на новую строку.
+        */}
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto p-4 justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowPreview((value) => !value)}
+          >
+            {showPreview ? <EyeOffIcon /> : <EyeIcon />}
+            {showPreview ? "Скрыть превью" : "Превью"}
+          </Button>
+
+          <Button
+            variant={visibility === "public" ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => void toggleVisibility()}
+            className={cn(visibility === "public" && "text-success")}
+          >
+            {visibility === "public" ? <GlobeIcon /> : <LockIcon />}
+            {visibility === "public" ? "Опубликована" : "Опубликовать"}
+          </Button>
+
+          {visibility === "public" && <CopyLinkButton noteId={note.id} />}
+        </div>
+      </footer>
     </div>
   );
 }

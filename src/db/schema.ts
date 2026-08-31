@@ -176,6 +176,14 @@ export const notes = pgTable(
     // Markdown-исходник. Рендерится на сервере, см. src/lib/markdown.ts.
     content: text().notNull().default(""),
 
+    // Кеш рендера для публичной страницы /n/:id: unified-пайплайн стоит
+    // дороже, чем сам запрос за заметкой, а результат между правками
+    // не меняется. null означает «надо отрендерить»; сбрасывается в null
+    // при каждом изменении content (см. updateNote в src/domain/notes.ts).
+    // Наружу не отдаётся: в API и в пропсах редактора есть тот же текст
+    // в виде markdown, дублировать его html-версией незачем.
+    contentHtml: text(),
+
     position: numeric({ precision: 20, scale: 10 }).notNull().default("1000"),
 
     isArchived: boolean().notNull().default(false),
@@ -209,4 +217,12 @@ export const notes = pgTable(
 export type User = typeof users.$inferSelect;
 export type Folder = typeof folders.$inferSelect;
 export type Note = typeof notes.$inferSelect;
+
+/**
+ * Заметка в том виде, в каком она уходит наружу — в JSON API и в пропсы
+ * редактора. Без contentHtml (кеш рендера нужен только серверу) и без
+ * searchVector (служебный tsvector, который клиенту не пригодится).
+ * Проекция, дающая этот тип, — noteColumns в src/domain/notes.ts.
+ */
+export type NoteView = Omit<Note, "contentHtml" | "searchVector">;
 export type NoteVisibility = (typeof noteVisibility.enumValues)[number];

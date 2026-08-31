@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
+import { cache } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { NoteEditor } from "@/components/note/note-editor";
 import { PublicFooter } from "@/components/public-footer";
-import { getNoteForViewer } from "@/domain/notes";
-import { markdownExcerpt, renderMarkdown } from "@/lib/markdown";
+import { getNoteForViewer, renderNoteHtml, saveNoteHtml } from "@/domain/notes";
+import { markdownExcerpt } from "@/lib/markdown";
 import { getCurrentUser } from "@/lib/session";
 import { parseResourceId } from "@/lib/validation";
 
@@ -17,16 +19,21 @@ import { parseResourceId } from "@/lib/validation";
  * подтвердил бы, что заметка с таким UUID существует.
  */
 
-async function loadNote(noteIdParam: string) {
+/**
+ * cache() — потому что за один запрос loadNote зовётся дважды: из
+ * generateMetadata и из самой страницы. Без него это два одинаковых
+ * похода в базу вместо одного.
+ */
+const loadNote = cache(async (noteIdParam: string) => {
   const id = parseResourceId(noteIdParam);
   if (!id) return null;
 
   const viewer = await getCurrentUser();
-  const note = await getNoteForViewer(id, viewer?.id ?? null);
-  if (!note) return null;
+  const loaded = await getNoteForViewer(id, viewer?.id ?? null);
+  if (!loaded) return null;
 
-  return { note, viewer };
-}
+  return { ...loaded, viewer };
+});
 
 export async function generateMetadata({
   params,
@@ -51,7 +58,7 @@ export default async function NotePage({ params }: PageProps<"/n/[noteId]">) {
   const loaded = await loadNote(noteId);
   if (!loaded) notFound();
 
-  const { note, viewer } = loaded;
+  const { note, contentHtml, viewer } = loaded;
 
   if (viewer?.id === note.ownerId && viewer.isApproved) {
     return (
@@ -61,7 +68,10 @@ export default async function NotePage({ params }: PageProps<"/n/[noteId]">) {
     );
   }
 
-  const html = await renderMarkdown(note.content);
+  const { html, cached } = await renderNoteHtml({ note, contentHtml });
+
+  // Запись кеша уходит после ответа: посетителю незачем ждать UPDATE.
+  if (!cached) after(() => saveNoteHtml(note.id, note.content, html));
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-10">

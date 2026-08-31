@@ -1,14 +1,38 @@
 import { and, count, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { folders, notes, type Note, type NoteVisibility } from "@/db/schema";
+import { folders, notes, type NoteView, type NoteVisibility } from "@/db/schema";
 import { forbidden, notFound, targetFolderNotFound } from "@/lib/errors";
+import { renderMarkdown } from "@/lib/markdown";
 import { DEFAULT_POSITION, positionBetween } from "@/lib/position";
 import { LIMITS } from "@/lib/validation";
 
-export async function getOwnedNote(ownerId: string, noteId: string): Promise<Note> {
+/**
+ * Колонки, которые заметке можно показывать наружу.
+ *
+ * Перечислены явно, а не через select(): иначе в JSON и в пропсы редактора
+ * уезжали бы ещё и searchVector с contentHtml — оба клиенту не нужны и оба
+ * сопоставимы по размеру с самим текстом заметки.
+ */
+export const noteColumns = {
+  id: notes.id,
+  ownerId: notes.ownerId,
+  folderId: notes.folderId,
+  title: notes.title,
+  visibility: notes.visibility,
+  content: notes.content,
+  position: notes.position,
+  isArchived: notes.isArchived,
+  createdAt: notes.createdAt,
+  updatedAt: notes.updatedAt,
+} as const;
+
+export async function getOwnedNote(
+  ownerId: string,
+  noteId: string,
+): Promise<NoteView> {
   const [note] = await db
-    .select()
+    .select(noteColumns)
     .from(notes)
     .where(
       and(
@@ -23,6 +47,17 @@ export async function getOwnedNote(ownerId: string, noteId: string): Promise<Not
 }
 
 /**
+ * Заметка вместе с кешем рендера.
+ *
+ * Кеш лежит рядом, а не внутри note, чтобы его нельзя было случайно передать
+ * в клиентский компонент вместе с самой заметкой: NoteView для этого и нужен.
+ */
+export interface ViewerNote {
+  note: NoteView;
+  contentHtml: string | null;
+}
+
+/**
  * Заметка для произвольного посетителя страницы /n/:id.
  *
  * Владелец видит свою заметку всегда. Все остальные — только public.
@@ -32,15 +67,18 @@ export async function getOwnedNote(ownerId: string, noteId: string): Promise<Not
 export async function getNoteForViewer(
   noteId: string,
   viewerId: string | null,
-): Promise<Note | null> {
-  const [note] = await db
-    .select()
+): Promise<ViewerNote | null> {
+  const [row] = await db
+    .select({ ...noteColumns, contentHtml: notes.contentHtml })
     .from(notes)
     .where(and(eq(notes.id, noteId), eq(notes.isArchived, false)));
 
-  if (!note) return null;
-  if (note.visibility === "public") return note;
-  if (viewerId && note.ownerId === viewerId) return note;
+  if (!row) return null;
+
+  const { contentHtml, ...note } = row;
+
+  if (note.visibility === "public") return { note, contentHtml };
+  if (viewerId && note.ownerId === viewerId) return { note, contentHtml };
 
   return null;
 }
@@ -67,7 +105,7 @@ async function nextPosition(
 export async function createNote(
   ownerId: string,
   input: { title: string; folderId: string | null; content?: string },
-): Promise<Note> {
+): Promise<NoteView> {
   const [{ total }] = await db
     .select({ total: count() })
     .from(notes)
@@ -101,7 +139,7 @@ export async function createNote(
       content: input.content ?? "",
       position: await nextPosition(ownerId, input.folderId),
     })
-    .returning();
+    .returning(noteColumns);
 
   return note;
 }
@@ -110,10 +148,16 @@ export async function updateNote(
   ownerId: string,
   noteId: string,
   input: { title?: string; content?: string },
-): Promise<Note> {
+): Promise<NoteView> {
   const [note] = await db
     .update(notes)
-    .set({ ...input, updatedAt: new Date() })
+    .set({
+      ...input,
+      // Правка текста делает кеш рендера недействительным. Правка одного
+      // заголовка — нет: в html заголовок не входит, его печатает страница.
+      ...(input.content === undefined ? {} : { contentHtml: null }),
+      updatedAt: new Date(),
+    })
     .where(
       and(
         eq(notes.id, noteId),
@@ -121,10 +165,44 @@ export async function updateNote(
         eq(notes.isArchived, false),
       ),
     )
-    .returning();
+    .returning(noteColumns);
 
   if (!note) throw notFound();
   return note;
+}
+
+/**
+ * Готовый html публичной заметки.
+ *
+ * cached: false означает, что html только что посчитан и его стоит сохранить
+ * через saveNoteHtml — но уже после ответа, чтобы не задерживать страницу.
+ * Планирование этой отложенной работы — забота слоя HTTP, а не домена.
+ */
+export async function renderNoteHtml({
+  note,
+  contentHtml,
+}: ViewerNote): Promise<{ html: string; cached: boolean }> {
+  if (contentHtml !== null) return { html: contentHtml, cached: true };
+
+  return { html: await renderMarkdown(note.content), cached: false };
+}
+
+/**
+ * Кладёт посчитанный html в кеш.
+ *
+ * Условие на content отсекает гонку с автосохранением: если между чтением
+ * и записью текст успел измениться, html уже устарел и записывать его нельзя.
+ * updatedAt намеренно не трогаем — это не правка заметки.
+ */
+export async function saveNoteHtml(
+  noteId: string,
+  renderedFrom: string,
+  html: string,
+): Promise<void> {
+  await db
+    .update(notes)
+    .set({ contentHtml: html })
+    .where(and(eq(notes.id, noteId), eq(notes.content, renderedFrom)));
 }
 
 /** POST /api/notes/:id/publish и /make-private. */
@@ -132,7 +210,8 @@ export async function setNoteVisibility(
   ownerId: string,
   noteId: string,
   visibility: NoteVisibility,
-): Promise<Note> {
+): Promise<NoteView> {
+  // contentHtml не сбрасываем: текст не менялся, а значит и рендер прежний.
   const [note] = await db
     .update(notes)
     .set({ visibility, updatedAt: new Date() })
@@ -143,7 +222,7 @@ export async function setNoteVisibility(
         eq(notes.isArchived, false),
       ),
     )
-    .returning();
+    .returning(noteColumns);
 
   if (!note) throw notFound();
   return note;
