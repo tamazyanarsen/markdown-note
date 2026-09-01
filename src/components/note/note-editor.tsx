@@ -175,7 +175,7 @@ export function NoteEditor({ note }: { note: NoteView }) {
           них не сдвигает соседей справа. Если ряд всё же не поместится —
           горизонтальная прокрутка, а не перенос на новую строку.
         */}
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto p-4 justify-end">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto p-4">
           <Button
             variant="outline"
             size="sm"
