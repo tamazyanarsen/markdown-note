@@ -4,7 +4,12 @@
 
 services:
   postgres:
-    image: postgres:17-alpine
+    # pgvector поверх стокового postgres:17 — под семантический поиск
+    # (расширение vector, таблица note_chunks). Образ Debian-овый, а не
+    # alpine: официальной alpine-сборки pgvector нет. Смена libc меняет
+    # правила сортировки текста, поэтому после первого старта на нём
+    # нужен `REINDEX DATABASE mdnote;` — см. README.
+    image: pgvector/pgvector:pg17
     container_name: md-note-postgres
     restart: unless-stopped
     environment:

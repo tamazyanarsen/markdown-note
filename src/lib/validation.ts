@@ -47,6 +47,18 @@ export const updateNoteSchema = z.object({
   content: z.string().max(LIMITS.contentMaxLength).optional(),
 });
 
+/**
+ * GET /api/search — строка запроса из адреса, а не из тела.
+ *
+ * Минимум два символа: по одной букве полнотекстовый индекс вернул бы
+ * половину базы, а смысловой запрос из одного символа не значит ничего —
+ * платить за его векторизацию незачем.
+ */
+export const searchQuerySchema = z.object({
+  q: z.string().trim().min(2).max(LIMITS.titleMaxLength),
+  mode: z.enum(["fts", "hybrid"]).default("fts"),
+});
+
 /** POST /api/{notes|folders}/:id/move — контракт из docs/описание.md. */
 export const moveSchema = z.object({
   targetFolderId: uuidSchema.nullish().transform((value) => value ?? null),

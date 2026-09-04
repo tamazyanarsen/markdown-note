@@ -11,7 +11,8 @@
 
 services:
   postgres:
-    image: postgres:17-alpine
+    # pgvector: расширение vector нужно таблице note_chunks (семантический поиск).
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -61,6 +62,10 @@ services:
       AUTH_VK_ID: ${AUTH_VK_ID:-}
       AUTH_VK_SECRET: ${AUTH_VK_SECRET:-}
       ALLOWED_EMAILS: ${ALLOWED_EMAILS:-}
+      # Пустые значения — не поломка: поиск останется полнотекстовым.
+      MWS_BASE_URL: ${MWS_BASE_URL:-}
+      MWS_API_KEY: ${MWS_API_KEY:-}
+      MWS_EMBEDDING_MODEL: ${MWS_EMBEDDING_MODEL:-}
     depends_on:
       postgres:
         condition: service_healthy

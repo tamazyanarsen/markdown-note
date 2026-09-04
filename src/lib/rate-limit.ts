@@ -48,6 +48,15 @@ export const RATE_LIMITS = {
   autosave: { capacity: 240, refillMs: 60_000 },
   /** Чтение публичных страниц гостями. */
   publicRead: { capacity: 120, refillMs: 60_000 },
+  /** Полнотекстовый поиск: летит на каждое нажатие клавиши, но локальный. */
+  search: { capacity: 120, refillMs: 60_000 },
+  /**
+   * Смысловой поиск. Строже остальных: каждый запрос — это вызов внешнего
+   * API за деньги. Клиент шлёт его только после паузы в наборе, так что
+   * тридцати в минуту хватает с запасом, а зациклившийся клиент
+   * не потратит бюджет.
+   */
+  semanticSearch: { capacity: 30, refillMs: 60_000 },
 } as const satisfies Record<string, RateLimitOptions>;
 
 /**

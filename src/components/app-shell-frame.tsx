@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { SearchPalette } from "@/components/search/search-palette";
 import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
@@ -54,6 +55,12 @@ export function AppShellFrame({
           <Link href="/" className="font-heading text-sm font-semibold">
             md-note
           </Link>
+
+          {/* Палитра живёт здесь, а не в боковой колонке: колонку можно
+              свернуть, а поиск должен оставаться под рукой всегда. */}
+          <div className="ml-auto">
+            <SearchPalette />
+          </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-auto">{children}</div>

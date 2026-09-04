@@ -13,6 +13,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  vector,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
@@ -214,9 +215,56 @@ export const notes = pgTable(
   ],
 );
 
+// --- Семантический поиск ----------------------------------------------------
+
+/**
+ * Размерность вектора модели bge-m3 (MWS GPT Model Hub).
+ *
+ * Зашита в тип колонки, поэтому смена модели — это миграция плюс полная
+ * переиндексация. Держать её здесь, а не в переменной окружения, намеренно:
+ * иначе рассогласование конфига и базы вылезало бы ошибкой на каждой вставке.
+ */
+export const EMBEDDING_DIMENSIONS = 1024;
+
+/**
+ * Куски заметок и их векторы.
+ *
+ * chunkIndex почти всегда 0: в окно модели (8192 токена) помещается почти
+ * любая заметка. Колонка заведена сразу, чтобы нарезка длинных заметок не
+ * требовала миграции — заметка может быть до 512 КБ (LIMITS.contentMaxLength).
+ *
+ * HNSW-индекса нет намеренно: на текущих объёмах полный перебор быстрее
+ * обхода индекса. Добавляется одной строкой, когда векторов станут тысячи.
+ */
+export const noteChunks = pgTable(
+  "note_chunks",
+  {
+    noteId: uuid()
+      .notNull()
+      .references(() => notes.id, { onDelete: "cascade" }),
+
+    chunkIndex: integer().notNull(),
+
+    // md5(title || content) на момент расчёта вектора. Разошёлся с текущим
+    // содержимым — значит заметку надо переиндексировать. Отдельного флага
+    // «устарело» нет специально: флаг можно рассинхронизировать с данными,
+    // а хеш — нет. Тот же приём, что у contentHtml, только самопроверяемый.
+    sourceHash: text().notNull(),
+
+    // Очищенный от markdown текст: он же уходит в модель, он же показывается
+    // в выдаче как сниппет. Хранится копией, а не смещениями в notes.content:
+    // смещения разъезжались бы в окне между правкой и переиндексацией.
+    text: text().notNull(),
+
+    embedding: vector({ dimensions: EMBEDDING_DIMENSIONS }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.noteId, t.chunkIndex] })],
+);
+
 export type User = typeof users.$inferSelect;
 export type Folder = typeof folders.$inferSelect;
 export type Note = typeof notes.$inferSelect;
+export type NoteChunk = typeof noteChunks.$inferSelect;
 
 /**
  * Заметка в том виде, в каком она уходит наружу — в JSON API и в пропсы

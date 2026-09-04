@@ -62,22 +62,36 @@ export async function renderMarkdown(source: string): Promise<string> {
   return String(file);
 }
 
+/**
+ * Markdown без разметки — сплошным текстом.
+ *
+ * Используется дважды: для коротких превью (markdownExcerpt ниже) и для
+ * индексации, где в модель эмбеддингов уходит именно текст, а не синтаксис
+ * (src/lib/chunk.ts). Поэтому длину здесь не ограничиваем — обрезкой
+ * занимается тот, кому она нужна.
+ */
+export function markdownToPlainText(source: string): string {
+  return (
+    source
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+      // Маркеры в начале строки — заголовки, цитаты, списки: они разделяют
+      // блоки, поэтому заменяются пробелом.
+      .replace(/^[ \t]*[#>]+[ \t]*/gm, " ")
+      .replace(/^[ \t]*[-*+][ \t]+/gm, " ")
+      // Инлайн-разметка склеивает слово: её убираем без пробела,
+      // иначе «**жирным**.» превратилось бы в «жирным .».
+      .replace(/[*_`~]/g, "")
+      .replace(/\|/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
+
 /** Короткая выжимка для превью и meta description. */
 export function markdownExcerpt(source: string, maxLength = 200): string {
-  const plain = source
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    // Маркеры в начале строки — заголовки, цитаты, списки: они разделяют
-    // блоки, поэтому заменяются пробелом.
-    .replace(/^[ \t]*[#>]+[ \t]*/gm, " ")
-    .replace(/^[ \t]*[-*+][ \t]+/gm, " ")
-    // Инлайн-разметка склеивает слово: её убираем без пробела,
-    // иначе «**жирным**.» превратилось бы в «жирным .».
-    .replace(/[*_`~]/g, "")
-    .replace(/\|/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const plain = markdownToPlainText(source);
 
   return plain.length > maxLength ? `${plain.slice(0, maxLength - 1)}…` : plain;
 }

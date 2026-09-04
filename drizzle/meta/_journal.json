@@ -15,6 +15,13 @@
       "when": 1788198962925,
       "tag": "0001_old_gambit",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788539924220,
+      "tag": "0002_narrow_expediter",
+      "breakpoints": true
     }
   ]
 }
