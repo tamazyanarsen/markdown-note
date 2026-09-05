@@ -20,6 +20,9 @@
 # production
 /build
 
+# вложения заметок: в dev лежат здесь, в проде — в томе Docker
+/uploads
+
 # misc
 .DS_Store
 *.pem

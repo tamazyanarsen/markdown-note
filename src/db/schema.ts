@@ -215,6 +215,57 @@ export const notes = pgTable(
   ],
 );
 
+// --- Вложения ---------------------------------------------------------------
+
+/**
+ * Метаданные загруженных файлов. Сами байты лежат на диске — путь не хранится,
+ * а выводится из owner_id и id (см. src/lib/uploads.ts).
+ *
+ * note_id обязателен, и это главное решение: право на вложение равно праву на
+ * заметку, которой оно принадлежит. Второй модели доступа не появляется —
+ * публичная заметка открывает свои картинки гостю, приватная не открывает
+ * никому, кроме владельца, и происходит это само.
+ *
+ * on delete cascade у обеих связей: строка без заметки означала бы файл,
+ * до которого уже никто не дойдёт. Заметки, впрочем, только архивируются,
+ * так что каскад срабатывает лишь при удалении пользователя.
+ *
+ * Инвариант «владелец вложения = владелец заметки» держит триггер
+ * attachments_owner_matches_note_owner, дописанный в миграцию руками —
+ * так же, как у заметок и папок.
+ */
+export const attachments = pgTable(
+  "attachments",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+
+    ownerId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+
+    noteId: uuid()
+      .notNull()
+      .references(() => notes.id, { onDelete: "cascade" }),
+
+    /** Имя из формы загрузки. Идёт в текст ссылки и в Content-Disposition,
+        но НЕ в путь на диске: там только UUID. */
+    filename: text().notNull(),
+
+    /** Из белого списка ALLOWED_MIME_TYPES, а не то, что прислал браузер. */
+    mimeType: text().notNull(),
+
+    byteSize: integer().notNull(),
+
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // По владельцу считается лимит на пользователя, по заметке — список
+    // вложений заметки.
+    index("attachments_owner_idx").on(t.ownerId),
+    index("attachments_note_idx").on(t.noteId),
+  ],
+);
+
 // --- Связи между заметками --------------------------------------------------
 
 /**
@@ -302,6 +353,7 @@ export type Folder = typeof folders.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type NoteChunk = typeof noteChunks.$inferSelect;
 export type NoteLink = typeof noteLinks.$inferSelect;
+export type Attachment = typeof attachments.$inferSelect;
 
 /**
  * Заметка в том виде, в каком она уходит наружу — в JSON API и в пропсы

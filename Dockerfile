@@ -49,6 +49,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
+# Каталог вложений создаём заранее и отдаём приложению: том монтируется
+# сюда, а том, созданный Docker-ом на пустом месте, принадлежал бы root —
+# и первая же загрузка файла упала бы на правах.
+RUN mkdir -p /app/uploads && chown nextjs:nodejs /app/uploads
+ENV UPLOADS_DIR=/app/uploads
+
 USER nextjs
 EXPOSE 3000
 

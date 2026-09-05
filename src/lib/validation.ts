@@ -12,6 +12,15 @@ export const LIMITS = {
   contentMaxLength: 512 * 1024,
   notesPerUser: 5_000,
   foldersPerUser: 1_000,
+  /**
+   * Один файл вложения. Десять мегабайт — это скриншот любого разрешения
+   * с запасом; выше начинается видео, которому в заметках делать нечего.
+   * Значение обязано быть согласовано с client_max_body_size в
+   * deploy/md-note-proxy.conf, иначе nginx отрежет запрос раньше нас
+   * и человек увидит его страницу ошибки вместо нашего сообщения.
+   */
+  attachmentMaxBytes: 10 * 1024 * 1024,
+  attachmentsPerUser: 2_000,
 } as const;
 
 export const uuidSchema = z.uuid();

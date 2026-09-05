@@ -68,6 +68,17 @@ export const targetFolderNotFound = () =>
 export const validationError = (details?: unknown) =>
   new AppError("VALIDATION_ERROR", "Некорректные данные запроса.", details);
 
+/**
+ * Отказ в загрузке файла с внятной причиной.
+ *
+ * Отдельно от validationError, потому что причина здесь показывается человеку
+ * дословно: редактор выводит `message` тостом. Общее «Некорректные данные
+ * запроса» на попытку вставить svg или файл на 20 МБ не объясняет ничего,
+ * а подробности validationError прячет в details, куда клиент не смотрит.
+ */
+export const uploadRejected = (reason: string) =>
+  new AppError("VALIDATION_ERROR", reason);
+
 export const rateLimited = () =>
   new AppError("RATE_LIMITED", "Слишком много запросов, попробуй позже.");
 

@@ -25,6 +25,7 @@ import { renderMarkdown } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
 import { NoteConnections } from "./note-connections";
+import { attachmentUpload } from "./upload";
 import { usePrefersDark } from "./use-prefers-dark";
 import { wikiLinkCompletion } from "./wiki-link";
 
@@ -51,8 +52,9 @@ export function NoteEditor({ note }: { note: NoteView }) {
     () => [
       markdown({ base: markdownLanguage, codeLanguages: languages }),
       wikiLinkCompletion,
+      attachmentUpload(note.id),
     ],
-    [],
+    [note.id],
   );
 
   const save = useCallback(async () => {

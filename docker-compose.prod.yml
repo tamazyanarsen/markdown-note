@@ -45,6 +45,10 @@ services:
       context: .
       target: runner
     restart: unless-stopped
+    volumes:
+      # Вложения заметок. Без тома они жили бы внутри контейнера и исчезали
+      # при каждом `up --build`. Путь совпадает с UPLOADS_DIR из Dockerfile.
+      - uploads-data:/app/uploads
     ports:
       # Только loopback: снаружи порт 3000 недоступен, ходит через nginx.
       # Без 127.0.0.1 Docker пробьёт правило в iptables мимо ufw и порт
@@ -66,6 +70,8 @@ services:
       MWS_BASE_URL: ${MWS_BASE_URL:-}
       MWS_API_KEY: ${MWS_API_KEY:-}
       MWS_EMBEDDING_MODEL: ${MWS_EMBEDDING_MODEL:-}
+      # Пусто — вопрос-ответ выключен, поиск работает как обычно.
+      MWS_CHAT_MODEL: ${MWS_CHAT_MODEL:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,3 +80,4 @@ services:
 
 volumes:
   postgres-data:
+  uploads-data:
