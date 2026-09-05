@@ -24,7 +24,9 @@ import { ApiError, apiFetch } from "@/lib/api-client";
 import { renderMarkdown } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
+import { NoteConnections } from "./note-connections";
 import { usePrefersDark } from "./use-prefers-dark";
+import { wikiLinkCompletion } from "./wiki-link";
 
 /** Пауза без ввода, после которой уходит автосохранение. */
 const AUTOSAVE_DELAY_MS = 800;
@@ -46,7 +48,10 @@ export function NoteEditor({ note }: { note: NoteView }) {
   const savedRef = useRef({ title: note.title, content: note.content });
 
   const extensions = useMemo(
-    () => [markdown({ base: markdownLanguage, codeLanguages: languages })],
+    () => [
+      markdown({ base: markdownLanguage, codeLanguages: languages }),
+      wikiLinkCompletion,
+    ],
     [],
   );
 
@@ -169,6 +174,9 @@ export function NoteEditor({ note }: { note: NoteView }) {
           </div>
         )}
       </div>
+
+      <NoteConnections noteId={note.id} />
+
       <footer>
         {/*
           Кнопки прижаты к правому краю, поэтому растущая подпись у левой из
@@ -245,6 +253,7 @@ function CopyLinkButton({ noteId }: { noteId: string }) {
     </Button>
   );
 }
+
 
 /**
  * Превью использует ту же цепочку remark/rehype, что и публичная страница,

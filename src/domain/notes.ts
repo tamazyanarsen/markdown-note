@@ -1,8 +1,10 @@
 import { and, count, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { replaceNoteLinks } from "@/db/queries/links";
 import { folders, notes, type NoteView, type NoteVisibility } from "@/db/schema";
 import { forbidden, notFound, targetFolderNotFound } from "@/lib/errors";
+import { extractNoteLinks } from "@/lib/links";
 import { renderMarkdown } from "@/lib/markdown";
 import { DEFAULT_POSITION, positionBetween } from "@/lib/position";
 import { LIMITS } from "@/lib/validation";
@@ -130,45 +132,79 @@ export async function createNote(
     if (!folder) throw targetFolderNotFound();
   }
 
-  const [note] = await db
-    .insert(notes)
-    .values({
-      ownerId,
-      folderId: input.folderId,
-      title: input.title,
-      content: input.content ?? "",
-      position: await nextPosition(ownerId, input.folderId),
-    })
-    .returning(noteColumns);
+  const content = input.content ?? "";
+  const position = await nextPosition(ownerId, input.folderId);
 
-  return note;
+  return db.transaction(async (tx) => {
+    const [note] = await tx
+      .insert(notes)
+      .values({
+        ownerId,
+        folderId: input.folderId,
+        title: input.title,
+        content,
+        position,
+      })
+      .returning(noteColumns);
+
+    // Обычно пусто: заметку создают пустой и наполняют потом. Но через API
+    // её можно создать сразу с текстом, и связи в нём тоже должны учитываться.
+    await replaceNoteLinks(tx, note.id, ownerId, extractNoteLinks(content, note.id));
+
+    return note;
+  });
 }
 
+/**
+ * Правка заметки.
+ *
+ * Смена текста тянет за собой две производные: кеш рендера и связи.
+ * Обе обновляются здесь же — связи в той же транзакции, потому что
+ * бэклинки от предыдущей редакции хуже, чем их отсутствие.
+ *
+ * Разбор markdown ради связей идёт на каждом сохранении, а сохраняется
+ * редактор каждые 800 мс. Это осознанная цена: разбор без рендера стоит
+ * порядка миллисекунды на обычной заметке. Ленивый пересчёт, как у векторов,
+ * здесь не годится — бэклинки нужны обратные, и «досчитать при открытии»
+ * означало бы перебрать все заметки владельца.
+ */
 export async function updateNote(
   ownerId: string,
   noteId: string,
   input: { title?: string; content?: string },
 ): Promise<NoteView> {
-  const [note] = await db
-    .update(notes)
-    .set({
-      ...input,
-      // Правка текста делает кеш рендера недействительным. Правка одного
-      // заголовка — нет: в html заголовок не входит, его печатает страница.
-      ...(input.content === undefined ? {} : { contentHtml: null }),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(notes.id, noteId),
-        eq(notes.ownerId, ownerId),
-        eq(notes.isArchived, false),
-      ),
-    )
-    .returning(noteColumns);
+  return db.transaction(async (tx) => {
+    const [note] = await tx
+      .update(notes)
+      .set({
+        ...input,
+        // Правка текста делает кеш рендера недействительным. Правка одного
+        // заголовка — нет: в html заголовок не входит, его печатает страница.
+        ...(input.content === undefined ? {} : { contentHtml: null }),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(notes.id, noteId),
+          eq(notes.ownerId, ownerId),
+          eq(notes.isArchived, false),
+        ),
+      )
+      .returning(noteColumns);
 
-  if (!note) throw notFound();
-  return note;
+    if (!note) throw notFound();
+
+    if (input.content !== undefined) {
+      await replaceNoteLinks(
+        tx,
+        note.id,
+        ownerId,
+        extractNoteLinks(input.content, note.id),
+      );
+    }
+
+    return note;
+  });
 }
 
 /**

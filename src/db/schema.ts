@@ -215,6 +215,42 @@ export const notes = pgTable(
   ],
 );
 
+// --- Связи между заметками --------------------------------------------------
+
+/**
+ * Кто на кого ссылается.
+ *
+ * Строится из текста заметки при сохранении (extractNoteLinks в
+ * src/lib/links.ts). Нужна ровно для одного — обратных ссылок: исходящие
+ * и так видны в самом тексте, а «кто ссылается сюда» без такой таблицы
+ * означало бы полный перебор всех заметок владельца на каждое открытие.
+ *
+ * Проверки владельца в схеме нет: невозможность связи с чужой заметкой
+ * обеспечивает единственный пишущий запрос (replaceNoteLinks), который
+ * подбирает цели по паре id + owner_id.
+ */
+export const noteLinks = pgTable(
+  "note_links",
+  {
+    sourceNoteId: uuid()
+      .notNull()
+      .references(() => notes.id, { onDelete: "cascade" }),
+
+    targetNoteId: uuid()
+      .notNull()
+      .references(() => notes.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.sourceNoteId, t.targetNoteId] }),
+
+    // Первичный ключ покрывает выборку исходящих, но не обратных:
+    // бэклинки идут по target, а он в ключе второй.
+    index("note_links_target_idx").on(t.targetNoteId),
+
+    check("note_links_no_self_link", sql`${t.sourceNoteId} <> ${t.targetNoteId}`),
+  ],
+);
+
 // --- Семантический поиск ----------------------------------------------------
 
 /**
@@ -265,6 +301,7 @@ export type User = typeof users.$inferSelect;
 export type Folder = typeof folders.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type NoteChunk = typeof noteChunks.$inferSelect;
+export type NoteLink = typeof noteLinks.$inferSelect;
 
 /**
  * Заметка в том виде, в каком она уходит наружу — в JSON API и в пропсы
