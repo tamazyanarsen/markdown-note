@@ -41,7 +41,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Шаблоны — в гит: без них «cp .env.example .env» из README и
+# «cp .env.production.example .env.production» из docs/деплой.md
+# не работают на свежем клоне. Значений в них нет, только имена и подсказки.
 !.env.example
+!.env.production.example
 
 # vercel
 .vercel
