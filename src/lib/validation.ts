@@ -68,6 +68,18 @@ export const searchQuerySchema = z.object({
   mode: z.enum(["fts", "hybrid"]).default("fts"),
 });
 
+/**
+ * POST /api/ask — вопрос к своим заметкам.
+ *
+ * Нижняя граница выше, чем у поиска: по двум символам искать ещё осмысленно,
+ * а спрашивать уже нет — вызов модели стоит денег. Верхняя ограничивает
+ * вопрос, а не текст: длинный «вопрос» — это попытка использовать нас как
+ * бесплатный доступ к языковой модели.
+ */
+export const askSchema = z.object({
+  q: z.string().trim().min(3).max(500),
+});
+
 /** POST /api/{notes|folders}/:id/move — контракт из docs/описание.md. */
 export const moveSchema = z.object({
   targetFolderId: uuidSchema.nullish().transform((value) => value ?? null),

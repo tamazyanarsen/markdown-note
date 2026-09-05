@@ -17,11 +17,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { MarkdownHtml } from "@/components/markdown-html";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { NoteView } from "@/db/schema";
 import { ApiError, apiFetch } from "@/lib/api-client";
-import { renderMarkdown } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
 import { NoteConnections } from "./note-connections";
@@ -172,7 +172,9 @@ export function NoteEditor({ note }: { note: NoteView }) {
 
         {showPreview && (
           <div className="min-w-0 flex-1 overflow-auto md:border-l">
-            <MarkdownPreview source={content} />
+            {/* Та же цепочка remark/rehype, что и на публичной странице,
+                включая санитизацию: автор видит ровно то, что увидит читатель. */}
+            <MarkdownHtml source={content} className="p-4 sm:p-6" />
           </div>
         )}
       </div>
@@ -256,29 +258,3 @@ function CopyLinkButton({ noteId }: { noteId: string }) {
   );
 }
 
-
-/**
- * Превью использует ту же цепочку remark/rehype, что и публичная страница,
- * включая санитизацию. Одна реализация — один результат, без расхождений
- * между тем, что видит автор, и тем, что увидит читатель.
- */
-function MarkdownPreview({ source }: { source: string }) {
-  const [html, setHtml] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    void renderMarkdown(source).then((result) => {
-      if (!cancelled) setHtml(result);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [source]);
-
-  return (
-    <article
-      className="prose prose-neutral dark:prose-invert max-w-none p-4 sm:p-6"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
-}

@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "../client";
 import { noteChunks, notes } from "../schema";
@@ -227,6 +227,33 @@ export async function findRelatedNotes(
     folderId: row.folder_id,
     chunkText: row.chunk_text,
   }));
+}
+
+/**
+ * Тексты кусков заданных заметок — контекст для генерации ответа.
+ *
+ * Сниппет из выдачи поиска для этого не годится: он обрезан до 200 символов
+ * и существует, чтобы человек узнал заметку, а не чтобы модель могла на него
+ * опереться.
+ *
+ * Владелец в условии, хотя список id уже пришёл из поиска по его же
+ * заметкам: правило из шапки файла не делает исключений, а ошибка вызова
+ * здесь означала бы чужой текст в ответе.
+ */
+export async function findChunksForNotes(
+  ownerId: string,
+  noteIds: string[],
+): Promise<Array<{ noteId: string; text: string }>> {
+  if (noteIds.length === 0) return [];
+
+  const rows = await db
+    .select({ noteId: noteChunks.noteId, text: noteChunks.text })
+    .from(noteChunks)
+    .innerJoin(notes, eq(notes.id, noteChunks.noteId))
+    .where(and(inArray(noteChunks.noteId, noteIds), eq(notes.ownerId, ownerId)))
+    .orderBy(noteChunks.noteId, noteChunks.chunkIndex);
+
+  return rows;
 }
 
 export interface StaleNote {

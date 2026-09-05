@@ -9,6 +9,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { loadOwnerTree } from "@/db/queries/tree";
+import { isChatEnabled } from "@/lib/chat";
 import type { CurrentUser } from "@/lib/session";
 
 import { AppShellFrame } from "./app-shell-frame";
@@ -42,6 +43,9 @@ export async function AppShell({
   return (
     <AppShellFrame
       defaultOpen={defaultOpen}
+      // Переменные окружения читаются здесь, на сервере: клиенту достаётся
+      // готовый ответ «можно спрашивать или нет», а не способ это выяснить.
+      chatEnabled={isChatEnabled()}
       sidebar={
         <>
           <SidebarHeader>

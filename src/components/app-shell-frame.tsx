@@ -29,11 +29,17 @@ export function AppShellFrame({
   sidebar,
   children,
   defaultOpen = true,
+  chatEnabled = false,
 }: {
   sidebar: ReactNode;
   children: ReactNode;
   /** Состояние колонки из cookie: свёрнутость переживает перезагрузку. */
   defaultOpen?: boolean;
+  /**
+   * Настроена ли модель для ответов на вопросы. Приходит пропом с сервера:
+   * клиент не видит переменных окружения и гадать по ним не должен.
+   */
+  chatEnabled?: boolean;
 }) {
   return (
     // h-dvh, а не min-h-svh (значение по умолчанию у SidebarProvider):
@@ -59,7 +65,7 @@ export function AppShellFrame({
           {/* Палитра живёт здесь, а не в боковой колонке: колонку можно
               свернуть, а поиск должен оставаться под рукой всегда. */}
           <div className="ml-auto">
-            <SearchPalette />
+            <SearchPalette chatEnabled={chatEnabled} />
           </div>
         </header>
 
