@@ -41,6 +41,10 @@ export default defineConfig({
 
   reporter: [["list"]],
 
+  // Компиляция маршрутов в dev стоит секунд, и первый по счёту тест
+  // гонялся с ней. Прогреваем до старта — см. комментарий в файле.
+  globalSetup: "./e2e/global-setup.ts",
+
   use: {
     baseURL: "http://localhost:3000",
     trace: "retain-on-failure",
