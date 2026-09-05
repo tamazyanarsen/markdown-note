@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { expect, resetTestUser, seedNote, test } from "./fixtures";
 
 /**
@@ -26,8 +28,44 @@ async function seedNotes() {
   });
 }
 
-test("Ctrl+K открывает палитру и находит заметку", async ({ page }) => {
-  await seedNotes();
+const NOTE_ID = "00000000-0000-4000-8000-00000000000a";
+
+/**
+ * Постоянная выдача поиска на оба режима.
+ *
+ * Тесты ниже проверяют палитру, а не поиск: перехват клавиш, навигацию
+ * и переход по выбранному пункту. Настоящий эндпоинт отвечает дважды —
+ * сначала полнотекстово, через паузу смыслово, — и второй ответ
+ * перерисовывает пункты. Клик, попавший между ними, уходит в уже
+ * отсоединённый элемент, и переход молча не происходит.
+ *
+ * Одинаковый ответ на оба режима убирает эту перерисовку целиком. Заодно
+ * тесты перестают ходить в MWS: сам поиск покрыт интеграционными тестами
+ * (tests/search.test.ts), а живой путь через него проверяют автодополнение
+ * по `[[` и блок похожих в links.spec.ts.
+ */
+async function stubSearch(page: Page) {
+  await page.route("**/api/search?**", async (route) => {
+    await route.fulfill({
+      json: {
+        hits: [
+          {
+            id: NOTE_ID,
+            title: "ADR: доступы",
+            folderId: null,
+            snippet: "Владелец видит всё своё дерево целиком.",
+          },
+        ],
+        semantic: true,
+      },
+    });
+  });
+}
+
+test("Ctrl+K открывает палитру, и выбранный пункт ведёт на заметку", async ({
+  page,
+}) => {
+  await stubSearch(page);
   await page.goto("/");
 
   // Именно сочетание клавиш, а не кнопка: браузер норовит увести фокус
@@ -38,35 +76,35 @@ test("Ctrl+K открывает палитру и находит заметку"
   await expect(dialog).toBeVisible();
 
   await page.keyboard.type("доступы");
-
   await expect(dialog.getByText("ADR: доступы")).toBeVisible();
-  await expect(dialog.getByText("Сборка в Docker")).toHaveCount(0);
 
-  // Выбор пункта ведёт на заметку. Кликом, а не Enter: первым в списке
-  // может стоять «Спросить у заметок», и Enter означал бы вопрос,
-  // а не переход — навигация стрелками проверяется отдельным тестом.
+  // Кликом, а не Enter: первым в списке может стоять «Спросить у заметок»,
+  // и Enter означал бы вопрос, а не переход. Навигация стрелками —
+  // отдельным тестом ниже.
   await dialog.getByText("ADR: доступы").click();
-  await expect(page).toHaveURL(/\/n\/[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(`/n/${NOTE_ID}`);
 });
 
 test("стрелки и Enter водят по выдаче", async ({ page }) => {
-  await seedNotes();
+  await stubSearch(page);
   await page.goto("/");
 
   await page.keyboard.press("Control+k");
-  await page.keyboard.type("заметк");
+  await page.keyboard.type("доступы");
 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("ADR: доступы")).toBeVisible();
 
-  // Палитра должна работать, ни разу не тронув мышь.
+  // Палитра должна работать, ни разу не тронув мышь. Первый пункт —
+  // «Спросить у заметок», поэтому до заметки один шаг вниз.
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
 
-  await expect(page).toHaveURL(/\/n\/[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(`/n/${NOTE_ID}`);
 });
 
 test("палитра закрывается по Escape и забывает запрос", async ({ page }) => {
+  await stubSearch(page);
   await page.goto("/");
 
   await page.keyboard.press("Control+k");
@@ -82,7 +120,7 @@ test("палитра закрывается по Escape и забывает за
 test("на время ожидания ответа висит индикатор, потом ответ и источники", async ({
   page,
 }) => {
-  await seedNotes();
+  await stubSearch(page);
 
   // Ответ подставной и намеренно медленный. Иначе индикатор не проверить:
   // настоящая модель отвечает за секунды, но может ответить и мгновенно,
