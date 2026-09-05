@@ -23,6 +23,12 @@
 # вложения заметок: в dev лежат здесь, в проде — в томе Docker
 /uploads
 
+# playwright
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
 # misc
 .DS_Store
 *.pem
