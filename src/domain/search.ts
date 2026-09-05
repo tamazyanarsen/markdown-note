@@ -1,5 +1,6 @@
 import {
   findLexicalMatches,
+  findRelatedNotes,
   findSemanticMatches,
   findStaleNotes,
   replaceNoteChunks,
@@ -93,6 +94,49 @@ export async function searchNotes(
 
     return { hits: merge(lexical, []), semantic: false };
   }
+}
+
+/**
+ * Заметки, близкие по смыслу к заданной.
+ *
+ * Дешевле поиска: векторы уже посчитаны, внешний API нужен только чтобы
+ * догнать отставшие. Заметку, которую только что правили, догнать обязательно —
+ * иначе похожие подбирались бы к предыдущей редакции текста.
+ *
+ * Владение проверяет сам запрос (пара id + owner_id в findRelatedNotes),
+ * поэтому чужой noteId даёт пустой список, а не ошибку. Отдельно вычитывать
+ * заметку ради проверки незачем: её content — до 512 КБ.
+ */
+export async function getRelatedNotes(
+  ownerId: string,
+  noteId: string,
+  options: { embed?: Embedder } = {},
+): Promise<SearchResult> {
+  const embed = options.embed ?? (isSemanticEnabled() ? embedTexts : null);
+
+  // Без векторов похожесть измерить нечем. Полнотекстового запасного слоя
+  // здесь нет — «похожие по словам» это уже не похожие.
+  if (!embed) return { hits: [], semantic: false };
+
+  try {
+    await reindexStaleNotes(ownerId, embed);
+  } catch (error) {
+    // Реиндексация — не повод остаться без блока: то, что уже посчитано,
+    // покажем. Устаревшие векторы дадут менее точный, но живой список.
+    console.error("Не удалось догнать векторы, ищем похожие по старым:", error);
+  }
+
+  const related = await findRelatedNotes(ownerId, noteId);
+
+  return {
+    hits: related.map((match) => ({
+      id: match.id,
+      title: match.title,
+      folderId: match.folderId,
+      snippet: markdownExcerpt(match.chunkText, SNIPPET_CHARS),
+    })),
+    semantic: true,
+  };
 }
 
 /**
