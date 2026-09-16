@@ -368,6 +368,70 @@ describe("граф связей", () => {
     expect(graph.edges).toHaveLength(0);
   });
 
+  it("окрестность берёт и похожих, когда её об этом просят", async () => {
+    // Ссылок нет ни одной: всё, что появится в окрестности, придёт
+    // от косинуса. Ради этого слой в мини-карте и заводился — у заметки
+    // без ссылок она иначе всегда пуста.
+    const root = await createNote(HEIDI, {
+      title: "Порядок элементов",
+      folderId: null,
+      content: "position numeric(20,10), новая позиция — среднее между соседями",
+    });
+    const close = await createNote(HEIDI, {
+      title: "Ребалансировка",
+      folderId: null,
+      content: "дробные позиции пересчитываются, когда зазор схлопывается",
+    });
+    const other = await createNote(HEIDI, {
+      title: "Вход через провайдера",
+      folderId: null,
+      content: "oauth, провайдер входа, сессия в базе",
+    });
+
+    const graph = await getNoteNeighborhood(HEIDI, root.id, {
+      similar: true,
+      embed,
+    });
+
+    expect(graph.nodes.map((node) => node.id).sort()).toEqual(
+      [root.id, close.id].sort(),
+    );
+
+    // Концы сравниваются множеством: пары сворачиваются least/greatest,
+    // и какой из двух id окажется источником, решает не смысл, а сортировка.
+    expect(graph.edges).toHaveLength(1);
+    expect(graph.edges[0].kind).toBe("similar");
+    expect([graph.edges[0].source, graph.edges[0].target].sort()).toEqual(
+      [root.id, close.id].sort(),
+    );
+
+    // Чужая тема не притянулась: слой не «все заметки», а те, что ближе
+    // порога MAX_RELATED_DISTANCE.
+    expect(graph.nodes.map((node) => node.id)).not.toContain(other.id);
+  });
+
+  it("без просьбы окрестность остаётся на ссылках", async () => {
+    // Умолчание то же, что у buildGraph: смысловой слой стоит перебора
+    // векторов и внешнего вызова, и включается он явно.
+    await createNote(HEIDI, {
+      title: "Порядок элементов",
+      folderId: null,
+      content: "position numeric(20,10), среднее между соседями",
+    });
+    const root = await createNote(HEIDI, {
+      title: "Ребалансировка",
+      folderId: null,
+      content: "дробные позиции, numeric и зазор между соседями",
+    });
+
+    const graph = await getNoteNeighborhood(HEIDI, root.id, { embed });
+
+    // Сама заметка в окрестности есть всегда — не хватает только рёбер,
+    // которые дал бы косинус.
+    expect(graph.nodes.map((node) => node.id)).toEqual([root.id]);
+    expect(graph.edges).toHaveLength(0);
+  });
+
   it("окрестность чужой заметки пуста, а не подсмотрена", async () => {
     const foreign = await createNote(IVAN, { title: "Чужая", folderId: null });
     await createNote(IVAN, {
@@ -396,7 +460,7 @@ describe("граф связей", () => {
       content: `[средняя](/n/${middle.id})`,
     });
 
-    const near = await getNoteNeighborhood(HEIDI, root.id, 1);
+    const near = await getNoteNeighborhood(HEIDI, root.id, { radius: 1 });
     const node = near.nodes.find((candidate) => candidate.id === middle.id)!;
 
     expect(near.nodes).toHaveLength(2);

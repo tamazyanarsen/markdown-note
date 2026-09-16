@@ -102,6 +102,36 @@ test("тумблер папок убирает слой, не перезагру
   await expect(list.getByRole("listitem")).toHaveCount(0);
 });
 
+test("выбранные слои переживают уход с карты и возврат", async ({ page }) => {
+  // Ровно тот путь, на котором сброс и мешает: с карты кликают в заметку,
+  // возвращаются — и тумблеры стоят там, где их оставили.
+  const targetId = await seedNote({ title: "Дробная сортировка" });
+  await createNote(page, {
+    title: "Черновик",
+    content: `[дробная сортировка](/n/${targetId})`,
+  });
+
+  await page.goto("/graph");
+
+  const folders = page.getByRole("checkbox", { name: "Папки" });
+  await expect(folders).toBeChecked();
+  await folders.uncheck();
+
+  await page.getByRole("checkbox", { name: /^Без связей/ }).check();
+
+  await page.goto(`/n/${targetId}`);
+  await page.goBack();
+
+  await expect(page.getByRole("checkbox", { name: "Папки" })).not.toBeChecked();
+  await expect(
+    page.getByRole("checkbox", { name: /^Без связей/ }),
+  ).toBeChecked();
+
+  // И после полной перезагрузки тоже: память в localStorage, а не в истории.
+  await page.reload();
+  await expect(page.getByRole("checkbox", { name: "Папки" })).not.toBeChecked();
+});
+
 test("фильтр оставляет в списке только совпавшее", async ({ page }) => {
   const targetId = await seedNote({ title: "Дробная сортировка" });
   await createNote(page, {
@@ -233,6 +263,37 @@ test("на странице заметки карта разворачивает
   await expect(
     page.getByRole("img", { name: "Карта связей между заметками" }),
   ).toHaveCount(0);
+});
+
+test("карта заметки показывает похожих, а не только ссылки", async ({
+  page,
+}) => {
+  // Ходит в настоящий MWS за векторами — как и тест похожих в links.spec.ts.
+  test.skip(!process.env.MWS_API_KEY, "MWS_API_KEY не задан");
+
+  // Ни одной ссылки в тексте: на прежней карте, знавшей только note_links,
+  // у этой заметки было бы «связей нет».
+  const sourceId = await seedNote({
+    title: "Порядок элементов в дереве",
+    content:
+      "Позиция хранится как numeric(20,10). Новая позиция — среднее между соседями, при слишком малом зазоре ветка ребалансируется.",
+  });
+
+  await seedNote({
+    title: "Ребалансировка веток",
+    content:
+      "Когда зазор позиций становится меньше 1e-6, ветка пересчитывается целиком и позиции раскладываются заново.",
+  });
+
+  await page.goto(`/n/${sourceId}`);
+  await page.getByRole("button", { name: "Карта связей" }).click();
+
+  // Первый заход считает векторы во внешнем API — дольше обычного запроса.
+  await expect(
+    page.getByRole("img", { name: "Карта связей между заметками" }),
+  ).toBeVisible({ timeout: 60_000 });
+
+  await expect(page.getByText("У этой заметки пока нет связей")).toHaveCount(0);
 });
 
 test("у заметки без связей карта честно говорит, что связей нет", async ({

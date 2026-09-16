@@ -17,6 +17,7 @@ import {
 
 import { GraphCanvas } from "./graph-canvas";
 import { GraphList } from "./graph-list";
+import { useGraphLayers } from "./use-graph-layers";
 
 /**
  * Карта связей целиком: холст, слои и фильтр.
@@ -28,6 +29,10 @@ import { GraphList } from "./graph-list";
  * Исключение — слой похожих: его строки на сервере и остаются, пока их
  * не попросят. Это полный перебор векторов, и платить за него при каждом
  * открытии страницы незачем.
+ *
+ * Выбранные слои переживают уход со страницы — см. use-graph-layers.ts.
+ * Клик по узлу уводит на заметку, и без этого возврат на карту означал бы
+ * переключать тумблеры заново каждый раз.
  */
 
 export function GraphView({
@@ -41,10 +46,19 @@ export function GraphView({
    */
   semanticEnabled: boolean;
 }) {
-  const [showFolders, setShowFolders] = useState(true);
-  const [showSimilar, setShowSimilar] = useState(false);
-  const [showIsolated, setShowIsolated] = useState(false);
+  const [layers, setLayers] = useGraphLayers();
   const [query, setQuery] = useState("");
+
+  const showFolders = layers.folders;
+  const showIsolated = layers.isolated;
+
+  /**
+   * Сохранённое «похожие включены» ничего не значит там, где смыслового слоя
+   * нет: тумблера не будет, а включённый слой остался бы без выключателя.
+   * Поэтому в хранилище лежит то, что человек выбрал, а на карту идёт то,
+   * что эта установка вообще умеет.
+   */
+  const showSimilar = layers.similar && semanticEnabled;
 
   /** null — ещё не запрашивали. Пустой массив — запросили, не нашлось. */
   const [similar, setSimilar] = useState<GraphLinkRow[] | null>(null);
@@ -119,7 +133,11 @@ export function GraphView({
           className="h-7 w-44 rounded-md border bg-transparent px-2 text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
         />
 
-        <Layer checked={showFolders} onChange={setShowFolders} label="Папки" />
+        <Layer
+          checked={showFolders}
+          onChange={(value) => setLayers({ folders: value })}
+          label="Папки"
+        />
 
         {/* Тумблера нет совсем, когда слой не на чём построить: выключенный
             переключатель, который нельзя включить, объяснял бы меньше,
@@ -127,14 +145,14 @@ export function GraphView({
         {semanticEnabled && (
           <Layer
             checked={showSimilar}
-            onChange={setShowSimilar}
+            onChange={(value) => setLayers({ similar: value })}
             label="Похожие по смыслу"
           />
         )}
 
         <Layer
           checked={showIsolated}
-          onChange={setShowIsolated}
+          onChange={(value) => setLayers({ isolated: value })}
           label={`Без связей${isolatedCount > 0 ? ` (${isolatedCount})` : ""}`}
         />
 

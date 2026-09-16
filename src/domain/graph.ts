@@ -42,6 +42,13 @@ export const NEIGHBORHOOD_RADIUS = 2;
  * все её заметки разом, и вопрос «с чем связана эта» утонул бы в ответе
  * «вот всё, что лежит рядом». Где заметка лежит, и так видно по дереву слева.
  *
+ * Смысловой слой, наоборот, нужен — и именно здесь он окупается лучше всего.
+ * Ссылок у большинства заметок нет вовсе, и без похожих карта у них честно
+ * пуста. А ещё она даёт то, чего не даёт список «Похожие заметки» рядом:
+ * список плоский, а два шага показывают, похожи ли найденные между собой —
+ * один плотный комок или три отдельные ветки. Просится явно (`similar`),
+ * как и у buildGraph: слой стоит перебора векторов и внешнего API.
+ *
  * Окрестность вырезается из полного графа владельца, а не выбирается из базы
  * рекурсивным запросом. Это три индексных запроса вместо одного сложного,
  * и на личной базе так дешевле по всем меркам, кроме одной: объём растёт
@@ -52,9 +59,20 @@ export const NEIGHBORHOOD_RADIUS = 2;
 export async function getNoteNeighborhood(
   ownerId: string,
   noteId: string,
-  radius = NEIGHBORHOOD_RADIUS,
+  options: { radius?: number; similar?: boolean; embed?: Embedder } = {},
 ): Promise<Graph> {
-  const graph = buildGraph(await loadGraphData(ownerId), { folders: false });
+  const { radius = NEIGHBORHOOD_RADIUS, similar = false } = options;
+
+  // Последовательно, а не Promise.all: слой похожих сначала догоняет
+  // отставшие векторы, а это запись в те же note_chunks, по которым он
+  // потом и считается. Выигрыш в пару сотен миллисекунд не стоит гонки.
+  const data = await loadGraphData(ownerId);
+  const pairs = similar ? (await getSimilarEdges(ownerId, options)).pairs : [];
+
+  const graph = buildGraph(
+    { ...data, similar: pairs },
+    { folders: false, similar },
+  );
 
   // Чужой или несуществующий noteId даёт пустой граф, а не ошибку:
   // в выборке по владельцу такого узла просто нет.

@@ -14,7 +14,10 @@ import { parseResourceId } from "@/lib/validation";
  * развернут. Складывать их в один ответ значило бы считать окрестность
  * всем подряд ради тех, кто её не открывает.
  *
- * Профиль лимита обычный: запрос локальный, внешний API не участвует.
+ * Слой похожих просится явно. Он и есть та цена, ради которой карта живёт
+ * за кнопкой: перебор векторов и, если заметку только что правили, вызов
+ * внешней модели ради догона. Профиль лимита поэтому поисковый — тот же,
+ * что у /connections.
  */
 export async function GET(
   request: Request,
@@ -27,7 +30,7 @@ export async function GET(
       const id = parseResourceId(noteId);
       if (!id) throw notFound();
 
-      return getNoteNeighborhood(user.id, id);
+      return getNoteNeighborhood(user.id, id, { similar: true });
     },
     RATE_LIMITS.search,
   );
