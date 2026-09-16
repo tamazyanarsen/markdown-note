@@ -62,7 +62,7 @@ const MAX_SEMANTIC_DISTANCE = 0.65;
  * скрипт замера тривиальный: посчитать embeddingInput по десятку своих
  * заметок и вывести матрицу косинусных расстояний.
  */
-const MAX_RELATED_DISTANCE = 0.55;
+export const MAX_RELATED_DISTANCE = 0.55;
 
 export interface LexicalMatch {
   id: string;

@@ -18,10 +18,13 @@ import type { FullConfig } from "@playwright/test";
 const ROUTES = [
   "/",
   "/signin",
+  "/graph",
   "/n/00000000-0000-4000-8000-000000000000",
   "/api/search?q=прогрев&mode=fts",
   "/api/search?q=прогрев&mode=hybrid",
   "/api/notes/00000000-0000-4000-8000-000000000000/connections",
+  "/api/notes/00000000-0000-4000-8000-000000000000/graph",
+  "/api/graph/similar",
   "/api/files/00000000-0000-4000-8000-000000000000",
 ];
 

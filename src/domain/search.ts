@@ -146,7 +146,7 @@ export async function getRelatedNotes(
  * автосохраняется постоянно, и каждая правка стоила бы вызова API.
  * Здесь же задержку и так прячет пауза перед запросом hybrid.
  */
-async function reindexStaleNotes(
+export async function reindexStaleNotes(
   ownerId: string,
   embed: Embedder,
 ): Promise<void> {

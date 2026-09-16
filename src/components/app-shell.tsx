@@ -1,7 +1,9 @@
+import { NetworkIcon } from "lucide-react";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { Button } from "@/components/ui/button";
 import {
   SidebarContent,
   SidebarFooter,
@@ -72,6 +74,20 @@ export async function AppShell({
           <SidebarSeparator />
 
           <SidebarFooter>
+            {/* Карта — второй способ ходить по заметкам, рядом с деревом.
+                Дерево отвечает «где лежит», карта — «с чем связано». */}
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-muted-foreground"
+            >
+              <Link href="/graph">
+                <NetworkIcon />
+                Карта связей
+              </Link>
+            </Button>
+
             <SignOutButton />
           </SidebarFooter>
         </>

@@ -25,6 +25,7 @@ import { ApiError, apiFetch } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
 import { NoteConnections } from "./note-connections";
+import { NoteGraph } from "./note-graph";
 import { attachmentUpload } from "./upload";
 import { usePrefersDark } from "./use-prefers-dark";
 import { wikiLinkCompletion } from "./wiki-link";
@@ -180,6 +181,7 @@ export function NoteEditor({ note }: { note: NoteView }) {
       </div>
 
       <NoteConnections noteId={note.id} />
+      <NoteGraph noteId={note.id} />
 
       <footer>
         {/*
