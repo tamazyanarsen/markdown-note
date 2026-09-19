@@ -1,4 +1,4 @@
-import { NetworkIcon } from "lucide-react";
+import { NetworkIcon, Trash2Icon } from "lucide-react";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -85,6 +85,20 @@ export async function AppShell({
               <Link href="/graph">
                 <NetworkIcon />
                 Карта связей
+              </Link>
+            </Button>
+
+            {/* Удалённое не исчезает сразу, и попасть туда надо откуда-то
+                кроме тоста, который человек уже закрыл. */}
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-muted-foreground"
+            >
+              <Link href="/trash">
+                <Trash2Icon />
+                Корзина
               </Link>
             </Button>
 

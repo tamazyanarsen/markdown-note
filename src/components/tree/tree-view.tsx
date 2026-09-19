@@ -185,16 +185,44 @@ export function TreeView({ tree, activeNoteId }: TreeViewProps) {
     );
   }
 
+  /**
+   * Удаление — это переезд в корзину, и тост об этом обязан давать дорогу
+   * обратно: иначе единственный способ вернуть заметку — вспомнить, что
+   * корзина вообще есть.
+   */
   async function confirmDelete() {
     if (!deleting) return;
     const node = deleting;
+    const kind = node.kind === "folder" ? "folders" : "notes";
     setDeleting(null);
 
-    await run(() =>
-      apiFetch(`/api/${node.kind === "folder" ? "folders" : "notes"}/${node.id}`, {
-        method: "DELETE",
-      }),
-    );
+    try {
+      await apiFetch(`/api/${kind}/${node.id}`, { method: "DELETE" });
+    } catch (cause) {
+      toast.error(cause instanceof ApiError ? cause.message : "Что-то пошло не так.");
+      return;
+    }
+
+    // Открытая заметка после удаления отдаёт 404: refresh на её странице
+    // показал бы именно его, поэтому сначала уходим в корень.
+    const wasOpen = node.kind === "note" && node.id === activeNoteId;
+    if (wasOpen) router.push("/");
+
+    startTransition(() => router.refresh());
+
+    toast(node.kind === "folder" ? "Папка в корзине" : "Заметка в корзине", {
+      action: {
+        label: "Восстановить",
+        onClick: () =>
+          run(async () => {
+            await apiFetch(`/api/trash/${kind}/${node.id}/restore`, {
+              method: "POST",
+            });
+            // Возвращаем туда же, откуда ушли: заметка снова существует.
+            if (wasOpen) router.push(`/n/${node.id}`);
+          }),
+      },
+    });
   }
 
   const draggedNode = draggingId ? locate(tree, draggingId)?.node : null;
@@ -653,14 +681,14 @@ function DeleteDialog({
           </AlertDialogTitle>
           <AlertDialogDescription>
             {isFolder
-              ? "Вместе с папкой удалится всё её содержимое."
-              : "Заметка и её содержимое будут удалены."}
+              ? "Папка со всем содержимым отправится в корзину. Оттуда её можно вернуть."
+              : "Заметка отправится в корзину. Оттуда её можно вернуть."}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Отмена</AlertDialogCancel>
           <AlertDialogAction variant="destructive" onClick={onConfirm}>
-            Удалить
+            В корзину
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
