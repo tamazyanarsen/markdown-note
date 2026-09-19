@@ -111,7 +111,12 @@ describe("moveNote", () => {
   it("архивная целевая папка тоже не подходит", async () => {
     const note = await createNote(ALICE, { title: "Заметка", folderId: null });
     const folder = await createFolder(ALICE, { title: "Архив", parentId: null });
-    await db.update(folders).set({ isArchived: true }).where(eq(folders.id, folder.id));
+    // archived_at обязателен вместе с флагом: их согласованность держит
+    // check-констрейнт folders_archived_at_matches_flag.
+    await db
+      .update(folders)
+      .set({ isArchived: true, archivedAt: new Date() })
+      .where(eq(folders.id, folder.id));
 
     await expectAppError(
       () => moveNote(ALICE, note.id, { targetFolderId: folder.id }),

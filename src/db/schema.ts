@@ -142,10 +142,18 @@ export const folders = pgTable(
 
     isArchived: boolean().notNull().default(false),
 
+    /** Когда папка попала в корзину. См. комментарий у notes.archivedAt. */
+    archivedAt: timestamp({ withTimezone: true }),
+
     ...timestamps,
   },
   (t) => [
     check("folders_cannot_be_own_parent", sql`${t.id} <> ${t.parentId}`),
+
+    check(
+      "folders_archived_at_matches_flag",
+      sql`${t.isArchived} = (${t.archivedAt} is not null)`,
+    ),
 
     index("folders_parent_position_idx")
       .on(t.parentId, t.position)
@@ -154,6 +162,10 @@ export const folders = pgTable(
     index("folders_owner_parent_position_idx")
       .on(t.ownerId, t.parentId, t.position)
       .where(sql`${t.isArchived} = false`),
+
+    index("folders_owner_archived_idx")
+      .on(t.ownerId, t.archivedAt)
+      .where(sql`${t.isArchived} = true`),
   ],
 );
 
@@ -189,6 +201,23 @@ export const notes = pgTable(
 
     isArchived: boolean().notNull().default(false),
 
+    /**
+     * Когда заметка попала в корзину.
+     *
+     * Второй флаг рядом с is_archived: он остаётся, потому что на него
+     * завязаны partial-индексы, триггеры владения и два десятка запросов.
+     * Рассогласоваться они не могут — держит check-констрейнт
+     * notes_archived_at_matches_flag.
+     *
+     * Колонка нужна не только ради даты в списке корзины. Все строки,
+     * удалённые одним действием, получают одно и то же now(): в Postgres
+     * оно фиксируется на транзакцию, а archiveFolder — один запрос.
+     * Значит «что удалили вместе» = «одинаковый archived_at внутри
+     * поддерева», и отдельный deletion_id заводить незачем. На этом
+     * равенстве держится вся группировка в src/domain/trash.ts.
+     */
+    archivedAt: timestamp({ withTimezone: true }),
+
     ...timestamps,
 
     // to_tsvector с явной конфигурацией immutable, поэтому годится
@@ -199,6 +228,11 @@ export const notes = pgTable(
     ),
   },
   (t) => [
+    check(
+      "notes_archived_at_matches_flag",
+      sql`${t.isArchived} = (${t.archivedAt} is not null)`,
+    ),
+
     index("notes_folder_position_idx")
       .on(t.folderId, t.position)
       .where(sql`${t.isArchived} = false`),
@@ -210,6 +244,12 @@ export const notes = pgTable(
     index("notes_owner_idx")
       .on(t.ownerId)
       .where(sql`${t.isArchived} = false`),
+
+    // Список корзины и автоочистка по сроку: обе выборки идут по владельцу
+    // и дате удаления, а живые заметки в них не попадают никогда.
+    index("notes_owner_archived_idx")
+      .on(t.ownerId, t.archivedAt)
+      .where(sql`${t.isArchived} = true`),
 
     index("notes_search_idx").using("gin", t.searchVector),
   ],

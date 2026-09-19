@@ -121,6 +121,13 @@ export async function renameFolder(
  * Архивировать только саму папку нельзя — её дети перестали бы находить
  * родителя в выборке (она фильтруется по is_archived = false) и всплыли бы
  * в корень дерева.
+ *
+ * Все строки получают одно и то же now(): в Postgres оно фиксируется
+ * на транзакцию, а здесь транзакция — один запрос. На этом равенстве
+ * держится группировка корзины (src/domain/trash.ts): «удалено одним
+ * действием» = «одинаковый archived_at». Ветка, отправленная в корзину
+ * раньше и отдельно, сохраняет свой archived_at — условие
+ * is_archived = false ниже её не трогает.
  */
 export async function archiveFolder(
   ownerId: string,
@@ -150,14 +157,14 @@ export async function archiveFolder(
     ),
     archived_notes as (
       update notes
-      set is_archived = true, updated_at = now()
+      set is_archived = true, archived_at = now(), updated_at = now()
       where owner_id = ${ownerId}
         and folder_id in (select id from subtree)
         and is_archived = false
       returning id
     )
     update folders
-    set is_archived = true, updated_at = now()
+    set is_archived = true, archived_at = now(), updated_at = now()
     where owner_id = ${ownerId}
       and id in (select id from subtree)
       and is_archived = false

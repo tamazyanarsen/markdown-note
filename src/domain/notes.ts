@@ -264,10 +264,19 @@ export async function setNoteVisibility(
   return note;
 }
 
+/**
+ * Мягкое удаление: заметка уезжает в корзину, а не исчезает.
+ *
+ * archived_at ставится вместе с флагом — их рассогласование запрещено
+ * check-констрейнтом. Восстановление и физическое удаление живут
+ * в src/domain/trash.ts.
+ */
 export async function archiveNote(ownerId: string, noteId: string): Promise<void> {
+  const now = new Date();
+
   const [note] = await db
     .update(notes)
-    .set({ isArchived: true, updatedAt: new Date() })
+    .set({ isArchived: true, archivedAt: now, updatedAt: now })
     .where(
       and(
         eq(notes.id, noteId),
