@@ -90,14 +90,11 @@ export function TrashList({
 
   return (
     <div className="mx-auto w-full max-w-2xl p-4 sm:p-8">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-xl font-semibold">Корзина</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Удалённое хранится {retentionDays} дней, потом исчезает без
-            возможности восстановить.
-          </p>
-        </div>
+      {/* Кнопка на строке заголовка, а не под подписью: подпись длинная,
+          и рядом с ней кнопка переносилась бы на свою строку даже там,
+          где места хватает. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-heading text-xl font-semibold">Корзина</h1>
 
         {items.length > 0 && (
           <Button variant="outline" size="sm" onClick={() => setPurging("all")}>
@@ -106,6 +103,11 @@ export function TrashList({
           </Button>
         )}
       </div>
+
+      <p className="mt-2 text-sm text-muted-foreground">
+        Удалённое хранится {retentionDays} дней, потом исчезает без возможности
+        восстановить.
+      </p>
 
       {items.length === 0 ? (
         <p className="mt-8 rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
