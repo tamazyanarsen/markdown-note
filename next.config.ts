@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 
 // Сервис лежит в открытом интернете и рендерит чужой markdown,
 // поэтому базовые заголовки ставим сразу, а не «потом».
-// CSP добавляется отдельно в middleware — ей нужен per-request nonce.
+//
+// CSP здесь нет намеренно: её nonce обязан быть своим на каждый ответ,
+// а заголовки в этом файле статичны. Политика живёт в src/lib/csp.ts,
+// а ставит её src/proxy.ts.
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
