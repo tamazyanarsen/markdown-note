@@ -25,6 +25,7 @@ export const noteColumns = {
   content: notes.content,
   position: notes.position,
   isArchived: notes.isArchived,
+  archivedAt: notes.archivedAt,
   createdAt: notes.createdAt,
   updatedAt: notes.updatedAt,
 } as const;
@@ -85,8 +86,14 @@ export async function getNoteForViewer(
   return null;
 }
 
-/** Позиция в конце списка заметок той же папки. */
-async function nextPosition(
+/**
+ * Позиция в конце списка заметок той же папки.
+ *
+ * Экспортируется ради корзины: заметка, восстановленная из удалённой папки,
+ * всплывает в корень и занимает там место в конце (см. restoreNote
+ * в src/domain/trash.ts).
+ */
+export async function nextNotePosition(
   ownerId: string,
   folderId: string | null,
 ): Promise<string> {
@@ -133,7 +140,7 @@ export async function createNote(
   }
 
   const content = input.content ?? "";
-  const position = await nextPosition(ownerId, input.folderId);
+  const position = await nextNotePosition(ownerId, input.folderId);
 
   return db.transaction(async (tx) => {
     const [note] = await tx

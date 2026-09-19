@@ -31,8 +31,13 @@ export async function getOwnedFolder(
   return folder;
 }
 
-/** Позиция в конце списка папок того же родителя. */
-async function nextPosition(
+/**
+ * Позиция в конце списка папок того же родителя.
+ *
+ * Экспортируется ради корзины: папка, восстановленная из удалённого
+ * родителя, всплывает в корень (см. restoreFolder в src/domain/trash.ts).
+ */
+export async function nextFolderPosition(
   ownerId: string,
   parentId: string | null,
 ): Promise<string> {
@@ -86,7 +91,7 @@ export async function createFolder(
       ownerId,
       parentId: input.parentId,
       title: input.title,
-      position: await nextPosition(ownerId, input.parentId),
+      position: await nextFolderPosition(ownerId, input.parentId),
     })
     .returning();
 
